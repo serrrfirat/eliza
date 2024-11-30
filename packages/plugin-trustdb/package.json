@@ -9,7 +9,7 @@
         "dompurify": "3.2.1",
         "tsup": "8.3.5",
         "uuid": "11.0.2",
-        "vitest": "2.1.5"
+        "vitest": "2.1.6"
     },
     "scripts": {
         "build": "tsup --format esm --dts",
