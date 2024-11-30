@@ -11,10 +11,10 @@
     "devDependencies": {
         "@typescript-eslint/eslint-plugin": "^8.16.0",
         "@typescript-eslint/parser": "^8.16.0",
-        "eslint": "^9.15.0",
+        "eslint": "9.16.0",
         "eslint-config-prettier": "9.1.0",
         "eslint-plugin-prettier": "5.2.1",
-        "eslint-plugin-vitest": "0.5.4"
+        "@vitest/eslint-plugin": "1.0.1"
     },
     "scripts": {
         "build": "tsup --format esm --dts",
