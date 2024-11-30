@@ -29,7 +29,7 @@
         "eslint": "^9.15.0",
         "eslint-config-prettier": "9.1.0",
         "husky": "9.1.7",
-        "lerna": "8.1.5",
+        "lerna": "8.1.9",
         "only-allow": "1.2.1",
         "prettier": "3.3.3",
         "turbo": "^2.3.3",
