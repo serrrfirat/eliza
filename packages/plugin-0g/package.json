@@ -7,7 +7,7 @@
     "dependencies": {
         "@ai16z/eliza": "workspace:*",
         "tsup": "^8.3.5",
-        "@0glabs/0g-ts-sdk": "0.2.1",
+        "@0glabs/0g-ts-sdk": "0.2.2",
         "ethers": "^6.0.0"
     },
     "scripts": {
