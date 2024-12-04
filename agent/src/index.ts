@@ -167,7 +167,7 @@ export async function loadCharacters(
                             return importedPlugin.default;
                         })
                     );
-                    character.plugins = importedPlugins.filter(Boolean);
+                    character.plugins = importedPlugins;
                 }
 
                 loadedCharacters.push(character);
@@ -384,7 +384,11 @@ export function createAgent(
                 !getSecret(character, "WALLET_PUBLIC_KEY")?.startsWith("0x"))
                 ? solanaPlugin
                 : null,
-            nearPlugin,
+            (getSecret(character, "NEAR_ADDRESS") ||
+                getSecret(character, "NEAR_WALLET_PUBLIC_KEY")) &&
+                getSecret(character, "NEAR_WALLET_SECRET_KEY")
+                ? nearPlugin
+                : null,
             getSecret(character, "EVM_PUBLIC_KEY") ||
             (getSecret(character, "WALLET_PUBLIC_KEY") &&
                 !getSecret(character, "WALLET_PUBLIC_KEY")?.startsWith("0x"))
