@@ -13,7 +13,10 @@
             "./node_modules/@types",
             "./src/types"
         ],
-        "declaration": true
+        "declaration": true,
+        "paths": {
+            "@defuse-protocol/defuse-sdk": ["./node_modules/@defuse-protocol/defuse-sdk"]
+        }
     },
     "include": [
         "src"
