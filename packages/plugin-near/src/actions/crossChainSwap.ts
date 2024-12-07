@@ -205,8 +205,8 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
         keyStore,
         nodeUrl,
     });
-    const signer =  nearConnection.connection.signer
 
+    const signer =  nearConnection.connection.signer
     const quote = await getQuote({
         defuse_asset_identifier_in: params.tokenIn,
         defuse_asset_identifier_out: params.tokenOut,
@@ -239,6 +239,41 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     console.log("Intent:", intent);
 }
 
+
+const crossChainSwapTemplate = `Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined.
+
+Example response:
+\`\`\`json
+{
+            "defuse_asset_identifier_in": "nep141:ft1.near",
+            "defuse_asset_identifier_out": "nep141:ft2.near",
+            "exact_amount_in": "1000",
+            "quote_id": "00000000-0000-0000-0000-000000000000", // OPTIONAL. default will be generated randomly
+            "min_deadline_ms": "60000" // OPTIONAL. default 120_000ms / 2min
+        }
+\`\`\`
+
+{{recentMessages}}
+
+Given the recent messages and wallet information below:
+
+{{walletInfo}}
+
+Extract the following information about the requested token swap:
+- defuse_asset_identifier_in: The input token ID
+- defuse_asset_identifier_out: The output token ID
+- exact_amount_in: The amount to swap
+
+Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined. The result should be a valid JSON object with the following schema:
+\`\`\`json
+{
+    "defuse_asset_identifier_in": string | null,
+    "defuse_asset_identifier_out": string | null,
+    "exact_amount_in": string | null
+}
+\`\`\``;
+
+
 export const executeCrossChainSwap: Action = {
     name: "near_cross_chain_swap",
     description: "Swap tokens between NEAR and other supported chains",
@@ -269,13 +304,22 @@ export const executeCrossChainSwap: Action = {
         console.log("Message:", message);
         return true;
     },
-    handler: async (runtime: IAgentRuntime, message: Memory, state: State, _options: { [key: string]: unknown }, callback?: HandlerCallback) => {
+    handler: async (
+        runtime: IAgentRuntime,
+        message: Memory,
+        state: State,
+        _options: { [key: string]: unknown },
+        callback?: HandlerCallback
+    ): Promise<boolean> => {
+        if (!state) {
+            state = await runtime.composeState(message);
+        }
         const walletInfo = await walletProvider.get(runtime, message, state);
         state.walletInfo = walletInfo;
 
         const swapContext = composeContext({
             state,
-            template: swapTemplate,
+            template: crossChainSwapTemplate,
         });
 
         const response = await generateObject({
@@ -286,7 +330,8 @@ export const executeCrossChainSwap: Action = {
 
         console.log("Response:", response);
 
-        if (!response.amountIn || !response.tokenIn || !response.tokenOut ) {
+        if (!response.defuse_asset_identifier_in || !response.defuse_asset_identifier_out
+             || !response.exact_amount_in || !response.exact_amount_out) {
             console.log("Missing required parameters, skipping swap");
             const responseMsg = {
                 text: "I need the input token ID, output token ID, and amount to perform the swap",
