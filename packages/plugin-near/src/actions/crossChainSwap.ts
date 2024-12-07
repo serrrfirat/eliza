@@ -7,92 +7,10 @@ import { utils } from "near-api-js";
 import { keyStores } from "near-api-js";
 import { signTransaction } from "near-api-js/lib/transaction";
 import crypto from "crypto";
+import { CrossChainSwapParams, createTokenDiffIntent, IntentMessage, IntentStatus,
+     PublishIntentRequest, PublishIntentResponse, QuoteRequest, QuoteResponse } from "../types/defuse";
 
 const DEFUSE_RPC_URL = "https://solver-relay-v2.chaindefuser.com/rpc";
-
-// Quote Types
-interface QuoteRequest {
-    defuse_asset_identifier_in: string;
-    defuse_asset_identifier_out: string;
-    exact_amount_in?: string;
-    exact_amount_out?: string;
-    quote_id?: string;
-    min_deadline_ms?: number;
-}
-
-interface Quote {
-    quote_hash: string;
-    defuse_asset_identifier_in: string;
-    defuse_asset_identifier_out: string;
-    amount_in: string;
-    amount_out: string;
-    expiration_time: number;
-}
-
-interface QuoteResponse {
-    quotes: Quote[];
-}
-
-// Intent Types
-interface TokenDiffIntent {
-    intent: "token_diff";
-    diff: { [key: string]: string };
-}
-
-interface MTBatchTransferIntent {
-    intent: "mt_batch_transfer";
-    receiver_id: string;
-    token_id_amounts: { [key: string]: string };
-}
-
-interface FTWithdrawIntent {
-    intent: "ft_withdraw";
-    token: string;
-    receiver_id: string;
-    amount: string;
-    msg: string;
-}
-
-type Intent = TokenDiffIntent | MTBatchTransferIntent | FTWithdrawIntent;
-
-interface IntentDeadline {
-    timestamp: number;
-    block_number: number;
-}
-
-interface IntentMessage {
-    signer_id: string;
-    deadline: IntentDeadline;
-    intents: Intent[];
-}
-
-interface SignedData {
-    standard: "nep413" | "erc191" | "raw_ed25519";
-    message: IntentMessage;
-    nonce: string;
-    recipient: string;
-    signature: Signature;
-    public_key?: string;
-}
-
-interface PublishIntentRequest {
-    quote_hashes: string[];
-    signed_data: SignedData;
-}
-
-interface PublishIntentResponse {
-    status: "OK" | "FAILED";
-    reason?: string;
-    intent_hash: string;
-}
-
-interface IntentStatus {
-    intent_hash: string;
-    status: "PENDING" | "TX_BROADCASTED" | "SETTLED" | "NOT_FOUND_OR_NOT_VALID_ANYMORE";
-    data?: {
-        hash?: string;
-    };
-}
 
 async function makeRPCRequest<T>(method: string, params: any[]): Promise<T> {
     const response = await fetch(DEFUSE_RPC_URL, {
@@ -134,27 +52,6 @@ export const getIntentStatus = async (intentHash: string): Promise<IntentStatus>
     }]);
 };
 
-// Example usage of creating a token diff intent
-export const createTokenDiffIntent = (
-    inToken: string,
-    outToken: string,
-    inAmount: string,
-    outAmount: string
-): TokenDiffIntent => {
-    return {
-        intent: "token_diff",
-        diff: {
-            [inToken]: `-${inAmount}`,
-            [outToken]: outAmount
-        }
-    };
-};
-
-export interface CrossChainSwapParams {
-    amountIn: string;
-    tokenIn: string;
-    tokenOut: string;
-}
 
 export const getCurrentBlock = async (runtime: IAgentRuntime): Promise<{ blockHeight: number }> => {
     try {
@@ -186,7 +83,8 @@ export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory,
     state.walletInfo = walletInfo;
 }
 
-async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory, state: State, params: CrossChainSwapParams) {
+async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
+     state: State, params: CrossChainSwapParams): Promise<any> {
 
     const networkId = runtime.getSetting("NEAR_NETWORK") || "testnet";
     const nodeUrl = runtime.getSetting("RPC_URL") || "https://rpc.testnet.near.org";
@@ -237,6 +135,7 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     });
 
     console.log("Intent:", intent);
+    return intent;
 }
 
 
@@ -310,7 +209,7 @@ export const executeCrossChainSwap: Action = {
         state: State,
         _options: { [key: string]: unknown },
         callback?: HandlerCallback
-    ): Promise<boolean> => {
+    ): Promise<any> => {
         if (!state) {
             state = await runtime.composeState(message);
         }
@@ -334,47 +233,28 @@ export const executeCrossChainSwap: Action = {
              || !response.exact_amount_in || !response.exact_amount_out) {
             console.log("Missing required parameters, skipping swap");
             const responseMsg = {
-                text: "I need the input token ID, output token ID, and amount to perform the swap",
+                text: "I need to have the input token, output token, and amount to perform the swap",
             };
             callback?.(responseMsg);
             return true;
         }
-        // Create the cross-chain swap transaction
-        const transaction: SendTransactionNearParams = {
-            receiverId: runtime.getSetting("DEFUSE_CONTRACT_ID") as string,
-            actions: [
-                {
-                    type: "FunctionCall",
-                    params: {
-                        methodName: "swap_tokens",
-                        args: {
-                            token_in: response.tokenIn,
-                            token_out: response.tokenOut,
-                            amount_in: response.amountIn,
-                            min_amount_out: "0", // You might want to calculate this
-                            referral_id: "",
-                        },
-                        gas: "300000000000000", // 300 TGas
-                        deposit: "1", // Attach 1 yoctoNEAR for security
-                    }
-                }
-            ]
-        };
-
         try {
-            const result = await context.sendTransaction(transaction);
-            return {
-                success: true,
-                data: {
-                    txHash: result.txHash,
-                    message: `Successfully initiated cross-chain swap of ${amountIn} ${tokenIn} for ${tokenOut}`
-                }
+            const intent = await crossChainSwap(runtime, message, state, response);
+            console.log("Swap completed successfully!");
+            const txHashes = intent.data.hashes;
+
+            const responseMsg = {
+                text: `Swap completed successfully! Transaction hashes: ${txHashes}`,
             };
+
+            callback?.(responseMsg);
+            return true;
         } catch (error) {
-            return {
-                success: false,
-                error: `Failed to execute cross-chain swap: ${error.message}`
+            console.error("Error during cross-chain swap:", error);
+            const responseMsg = {
+                text: `Error during cross-chain swap: ${error instanceof Error ? error.message : String(error)}`,
             };
+            callback?.(responseMsg);
         }
     }
 };
