@@ -1,7 +1,7 @@
 // import { ChainType, SendTransactionNearParams, Action as DefuseAction, SendTransactionEVMParams } from "@defuse-protocol/defuse-sdk";
 import { ActionExample,composeContext,generateObject,IAgentRuntime,Memory,ModelClass,State,type Action,HandlerCallback } from "@ai16z/eliza";
 import { walletProvider } from "../providers/wallet";
-import { connect } from "near-api-js";
+import { connect, InMemorySigner } from "near-api-js";
 import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
 import { utils } from "near-api-js";
 import { keyStores } from "near-api-js";
@@ -13,18 +13,21 @@ import { DefuseMainnetTokenContractAddress, DefuseTestnetTokenContractAddress } 
 const DEFUSE_RPC_URL = "https://solver-relay-v2.chaindefuser.com/rpc";
 
 async function makeRPCRequest<T>(method: string, params: any[]): Promise<T> {
-    console.log("Making RPC request to:", DEFUSE_RPC_URL, method, params);
+    const requestBody = {
+        id: 1,
+        jsonrpc: "2.0",
+        method,
+        params,
+    };
+    console.log("Making RPC request to:", DEFUSE_RPC_URL, method);
+    console.log("Request body:", JSON.stringify(requestBody, null, 2));
+
     const response = await fetch(DEFUSE_RPC_URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-            id: 1,
-            jsonrpc: "2.0",
-            method,
-            params,
-        }),
+        body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
@@ -121,35 +124,45 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
         nodeUrl,
     });
 
-    const signer =  nearConnection.connection.signer
+    // const signer =  nearConnection.connection.signer
+    // console.log("Signer:", signer);
     const isTestnet = networkId === 'testnet';
+    const signer = new InMemorySigner(keyStore);
 
     const quote = await getQuote({
         defuse_asset_identifier_in: getContractAddress(params.defuse_asset_identifier_in, isTestnet),
         defuse_asset_identifier_out: getContractAddress(params.defuse_asset_identifier_out, isTestnet),
         exact_amount_in: params.exact_amount_in,
     });
-
     console.log("Quote:", quote);
     const intentMessage: IntentMessage = {
         signer_id: accountId,
         deadline: {
-            timestamp: Date.now() + 1000 * 60 * 5, // 5 minutes from now
-            block_number: (await getCurrentBlock(runtime)).blockHeight+1000,
+            timestamp: Math.floor(Date.now() / 1000) + 300, // 5 minutes from now in seconds
         },
-        intents: [createTokenDiffIntent(params.defuse_asset_identifier_in, params.defuse_asset_identifier_out, params.exact_amount_in, quote.quotes[0].amount_out)]
+        intents: [createTokenDiffIntent(
+            quote[0].defuse_asset_identifier_in,
+            quote[0].defuse_asset_identifier_out,
+            quote[0].amount_in,
+            quote[0].amount_out
+        )]
     };
+    console.log("Intent message:", intentMessage);
 
-    const message = await signer.signMessage(new Uint8Array(Buffer.from(JSON.stringify(intentMessage))));
+    const message = await signer.signMessage(new Uint8Array(Buffer.from(JSON.stringify(intentMessage))),accountId,networkId);
+    const publicKeyBase64 = Buffer.from(message.publicKey.data).toString('base64');
+
     const intent = await publishIntent({
-        quote_hashes: [quote.quotes[0].quote_hash],
+        quote_hashes: [quote[0].quote_hash],
         signed_data: {
             standard: "nep413",
-            message: intentMessage,
-            nonce: await generateUniqueNonce(runtime),
-            recipient: runtime.getSetting("DEFUSE_CONTRACT_ID") as string,
-            signature: message,
-            public_key: keyPair.getPublicKey().toString()
+            payload: {
+                message: JSON.stringify(intentMessage),
+                nonce: Buffer.from(crypto.randomBytes(32)).toString('base64'),
+                recipient: "intents.near"
+            },
+            public_key: `ed25519:${publicKeyBase64}`,
+            signature: `ed25519:${Buffer.from(message.signature).toString('base64')}`
         }
     });
 
