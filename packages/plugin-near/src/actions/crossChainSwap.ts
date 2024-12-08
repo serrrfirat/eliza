@@ -5,11 +5,16 @@ import { connect, InMemorySigner } from "near-api-js";
 import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
 import { utils } from "near-api-js";
 import { keyStores } from "near-api-js";
+import { field, option, fixedArray } from '@dao-xyz/borsh';
+
+import * as Borsh from "@dao-xyz/borsh";
+import * as js_sha256 from "js-sha256";
 import crypto from "crypto";
 import { CrossChainSwapParams, createTokenDiffIntent, IntentMessage, IntentStatus,
      PublishIntentRequest, PublishIntentResponse, QuoteRequest, QuoteResponse,
      DefuseAssetIdentifier} from "../types/defuse";
 import { DefuseMainnetTokenContractAddress, DefuseTestnetTokenContractAddress } from "../types/defuse";
+import { KeyPair } from "near-api-js";
 const DEFUSE_RPC_URL = "https://solver-relay-v2.chaindefuser.com/rpc";
 
 async function makeRPCRequest<T>(method: string, params: any[]): Promise<T> {
@@ -123,6 +128,55 @@ async function pollIntentStatus(intentHash: string): Promise<IntentStatus> {
     throw new Error("Timeout waiting for intent to settle");
 }
 
+interface SignMessageParams {
+    message: string;
+    recipient: string;
+    nonce: Uint8Array;
+    callbackUrl?: string;
+}
+
+class Payload {
+    @field({ type: 'u32' })
+    tag: number; // Always the same tag: 2**31 + 413
+
+    @field({ type: 'string' })
+    message: string; // The same message passed in `SignMessageParams.message`
+
+    @field({ type: fixedArray('u8', 32) })
+    nonce: number[]; // The same nonce passed in `SignMessageParams.nonce`
+
+    @field({ type: 'string' })
+    recipient: string; // The same recipient passed in `SignMessageParams.recipient`
+
+    @field({ type: option('string') })
+    callbackUrl?: string;
+
+    constructor({ message, nonce, recipient }: Payload) {
+        this.tag = 2147484061;
+        this.message = message;
+        this.nonce = nonce;
+        this.recipient = recipient;
+    }
+}
+
+async function signMessage(keyPair: KeyPair, params: SignMessageParams) {
+    // Check the nonce is a 32bytes array
+    if (params.nonce.byteLength !== 32) {
+        throw Error("Expected nonce to be a 32 bytes buffer");
+    }
+
+    // Create the payload and sign it
+    const payload = new Payload({ tag: 2147484061, message: params.message, nonce: Array.from(params.nonce), recipient: params.recipient});
+    const borshPayload = Borsh.serialize(payload);
+    const hashedPayload = js_sha256.sha256.array(borshPayload)
+    const { signature } = keyPair.sign(Uint8Array.from(hashedPayload))
+
+    return {
+        signature: utils.serialize.base_encode(signature),
+        publicKey: utils.serialize.base_encode(keyPair.getPublicKey().data)
+    };
+}
+
 async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
      state: State, params: CrossChainSwapParams): Promise<any> {
 
@@ -137,12 +191,7 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     const keyStore = new keyStores.InMemoryKeyStore();
     const keyPair = utils.KeyPair.fromString(secretKey as KeyPairString);
     await keyStore.setKey(networkId, accountId, keyPair);
-
-    const nearConnection = await connect({
-        networkId,
-        keyStore,
-        nodeUrl,
-    });
+    await addPublicKeyToIntents(runtime, utils.serialize.base_encode(keyPair.getPublicKey().data));
 
     const isTestnet = networkId === 'testnet';
     const signer = new InMemorySigner(keyStore);
@@ -165,22 +214,26 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
             quote[0].amount_out
         )]
     };
-    console.log("Intent message:", intentMessage);
+    const messageString = JSON.stringify(intentMessage);
+    const nonce = new Uint8Array(crypto.randomBytes(32));
+    const recipient = "intents.near";
 
-    const message = await signer.signMessage(new Uint8Array(Buffer.from(JSON.stringify(intentMessage))),accountId,networkId);
-    const publicKeyBase64 = Buffer.from(message.publicKey.data).toString('base64');
-
+    const { signature, publicKey } = await signMessage(keyPair, {
+        message: messageString,
+        recipient,
+        nonce
+    });
     const intent = await publishIntent({
         quote_hashes: [quote[0].quote_hash],
         signed_data: {
-            standard: "nep413",
             payload: {
-                message: JSON.stringify(intentMessage),
-                nonce: Buffer.from(crypto.randomBytes(32)).toString('base64'),
-                recipient: "intents.near"
+                message: messageString,
+                nonce: Buffer.from(nonce).toString('base64'),
+                recipient
             },
-            public_key: `ed25519:${publicKeyBase64}`,
-            signature: `ed25519:${Buffer.from(message.signature).toString('base64')}`
+            standard: "nep413",
+            signature: `ed25519:${signature}`,
+            public_key: `ed25519:${publicKey}`
         }
     });
 
@@ -317,7 +370,7 @@ export const executeCrossChainSwap: Action = {
         try {
             const intent = await crossChainSwap(runtime, message, state, response);
             console.log("Swap completed successfully!");
-            const txHashes = intent.data.hashes;
+            const txHashes = intent.data?.hash;
 
             const responseMsg = {
                 text: `Swap completed successfully! Transaction hashes: ${txHashes}`,
@@ -352,3 +405,56 @@ export const generateUniqueNonce = async (runtime: IAgentRuntime): Promise<strin
     }
 };
 
+async function addPublicKeyToIntents(runtime: IAgentRuntime, publicKey: string): Promise<void> {
+    const accountId = runtime.getSetting("NEAR_ADDRESS");
+    if (!accountId) {
+        throw new Error("NEAR_ADDRESS not configured");
+    }
+
+    const networkId = runtime.getSetting("NEAR_NETWORK") || "testnet";
+    const nodeUrl = runtime.getSetting("RPC_URL") || "https://rpc.testnet.near.org";
+    const secretKey = runtime.getSetting("NEAR_WALLET_SECRET_KEY");
+
+    const keyStore = new keyStores.InMemoryKeyStore();
+    const keyPair = utils.KeyPair.fromString(secretKey as KeyPairString);
+    await keyStore.setKey(networkId, accountId, keyPair);
+
+    const nearConnection = await connect({
+        networkId,
+        keyStore,
+        nodeUrl,
+    });
+
+    const account = await nearConnection.account(accountId);
+
+    await account.functionCall({
+        contractId: "intents.near",
+        methodName: "add_public_key",
+        args: {
+            public_key: publicKey
+        },
+        gas: BigInt(300000000000000),
+        attachedDeposit: BigInt(1)
+    });
+}
+
+
+// /// Returns set of public keys registered for given account
+// fn public_keys_of(&self, account_id: &AccountId) -> HashSet<PublicKey>;
+
+async function getPublicKeysOf(runtime: IAgentRuntime, accountId: string): Promise<string[]> {
+    const networkId = runtime.getSetting("NEAR_NETWORK") || "testnet";
+    const nodeUrl = runtime.getSetting("RPC_URL") || "https://rpc.testnet.near.org";
+
+    const nearConnection = await connect({
+        networkId,
+        nodeUrl,
+    });
+
+    const account = await nearConnection.account(accountId);
+    const publicKeys = await account.functionCall({
+        contractId: "intents.near",
+        methodName: "public_keys_of",
+        args: { account_id: accountId }
+    });
+}
