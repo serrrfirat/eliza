@@ -1,18 +1,19 @@
-import { ChainType, SendTransactionNearParams, Action as DefuseAction, SendTransactionEVMParams } from "@defuse-protocol/defuse-sdk";
+// import { ChainType, SendTransactionNearParams, Action as DefuseAction, SendTransactionEVMParams } from "@defuse-protocol/defuse-sdk";
 import { ActionExample,composeContext,generateObject,IAgentRuntime,Memory,ModelClass,State,type Action,HandlerCallback } from "@ai16z/eliza";
 import { walletProvider } from "../providers/wallet";
 import { connect } from "near-api-js";
 import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
 import { utils } from "near-api-js";
 import { keyStores } from "near-api-js";
-import { signTransaction } from "near-api-js/lib/transaction";
 import crypto from "crypto";
 import { CrossChainSwapParams, createTokenDiffIntent, IntentMessage, IntentStatus,
-     PublishIntentRequest, PublishIntentResponse, QuoteRequest, QuoteResponse } from "../types/defuse";
-
+     PublishIntentRequest, PublishIntentResponse, QuoteRequest, QuoteResponse,
+     DefuseAssetIdentifier} from "../types/defuse";
+import { DefuseMainnetTokenContractAddress, DefuseTestnetTokenContractAddress } from "../types/defuse";
 const DEFUSE_RPC_URL = "https://solver-relay-v2.chaindefuser.com/rpc";
 
 async function makeRPCRequest<T>(method: string, params: any[]): Promise<T> {
+    console.log("Making RPC request to:", DEFUSE_RPC_URL, method, params);
     const response = await fetch(DEFUSE_RPC_URL, {
         method: 'POST',
         headers: {
@@ -34,9 +35,25 @@ async function makeRPCRequest<T>(method: string, params: any[]): Promise<T> {
     if (data.error) {
         throw new Error(`RPC error: ${data.error.message}`);
     }
-
+    console.log("RPC response:", data.result);
     return data.result;
 }
+
+const getContractAddress = (assetIdentifier: DefuseAssetIdentifier, isTestnet: boolean = false): string => {
+    // Convert DefuseAssetIdentifier to the corresponding contract address enum key
+    console.log("Asset identifier:", assetIdentifier);
+    const contractKey = assetIdentifier.toString() as keyof typeof DefuseMainnetTokenContractAddress;
+
+    if (isTestnet) {
+        // For testnet, only NEAR is supported
+        if (assetIdentifier === DefuseAssetIdentifier.NEAR) {
+            return DefuseTestnetTokenContractAddress.NEAR;
+        }
+        return '';
+    }
+
+    return DefuseMainnetTokenContractAddress[contractKey] || '';
+};
 
 export const getQuote = async (params: QuoteRequest): Promise<QuoteResponse> => {
     return makeRPCRequest<QuoteResponse>("quote", [params]);
@@ -105,10 +122,12 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     });
 
     const signer =  nearConnection.connection.signer
+    const isTestnet = networkId === 'testnet';
+
     const quote = await getQuote({
-        defuse_asset_identifier_in: params.tokenIn,
-        defuse_asset_identifier_out: params.tokenOut,
-        exact_amount_in: params.amountIn,
+        defuse_asset_identifier_in: getContractAddress(params.defuse_asset_identifier_in, isTestnet),
+        defuse_asset_identifier_out: getContractAddress(params.defuse_asset_identifier_out, isTestnet),
+        exact_amount_in: params.exact_amount_in,
     });
 
     console.log("Quote:", quote);
@@ -118,7 +137,7 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
             timestamp: Date.now() + 1000 * 60 * 5, // 5 minutes from now
             block_number: (await getCurrentBlock(runtime)).blockHeight+1000,
         },
-        intents: [createTokenDiffIntent(params.tokenIn, params.tokenOut, params.amountIn, quote.quotes[0].amount_out)]
+        intents: [createTokenDiffIntent(params.defuse_asset_identifier_in, params.defuse_asset_identifier_out, params.exact_amount_in, quote.quotes[0].amount_out)]
     };
 
     const message = await signer.signMessage(new Uint8Array(Buffer.from(JSON.stringify(intentMessage))));
@@ -144,8 +163,8 @@ const crossChainSwapTemplate = `Respond with a JSON markdown block containing on
 Example response:
 \`\`\`json
 {
-            "defuse_asset_identifier_in": "nep141:ft1.near",
-            "defuse_asset_identifier_out": "nep141:ft2.near",
+            "defuse_asset_identifier_in": "NEAR",
+            "defuse_asset_identifier_out": "USDC,
             "exact_amount_in": "1000",
             "quote_id": "00000000-0000-0000-0000-000000000000", // OPTIONAL. default will be generated randomly
             "min_deadline_ms": "60000" // OPTIONAL. default 120_000ms / 2min
@@ -197,8 +216,16 @@ export const executeCrossChainSwap: Action = {
                     text: "Exchange 5 NEAR to USDC on Base"
                 }
             }
+        ],
+        [
+            {
+                user: "user3",
+                content: {
+                    text: "Swap 100 USDC for NEAR"
+                }
+            }
         ]
-    ],
+    ] as ActionExample[][],
     validate: async (runtime: IAgentRuntime, message: Memory) => {
         console.log("Message:", message);
         return true;
@@ -213,8 +240,6 @@ export const executeCrossChainSwap: Action = {
         if (!state) {
             state = await runtime.composeState(message);
         }
-        const walletInfo = await walletProvider.get(runtime, message, state);
-        state.walletInfo = walletInfo;
 
         const swapContext = composeContext({
             state,
@@ -230,14 +255,28 @@ export const executeCrossChainSwap: Action = {
         console.log("Response:", response);
 
         if (!response.defuse_asset_identifier_in || !response.defuse_asset_identifier_out
-             || !response.exact_amount_in || !response.exact_amount_out) {
+             || !response.exact_amount_in) {
             console.log("Missing required parameters, skipping swap");
+
             const responseMsg = {
                 text: "I need to have the input token, output token, and amount to perform the swap",
             };
             callback?.(responseMsg);
             return true;
         }
+
+        // Add validation for asset identifiers
+        if (!Object.values(DefuseAssetIdentifier).includes(response.defuse_asset_identifier_in) ||
+            !Object.values(DefuseAssetIdentifier).includes(response.defuse_asset_identifier_out)) {
+            console.log("Invalid asset identifiers provided");
+
+            const responseMsg = {
+                text: `Invalid tokens provided. Supported tokens are: ${Object.values(DefuseAssetIdentifier).join(', ')}`,
+            };
+            callback?.(responseMsg);
+            return true;
+        }
+
         try {
             const intent = await crossChainSwap(runtime, message, state, response);
             console.log("Swap completed successfully!");
@@ -257,7 +296,7 @@ export const executeCrossChainSwap: Action = {
             callback?.(responseMsg);
         }
     }
-};
+} as Action;
 
 export const generateUniqueNonce = async (runtime: IAgentRuntime): Promise<string> => {
     try {

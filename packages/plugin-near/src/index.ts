@@ -1,6 +1,5 @@
 import { Plugin } from "@ai16z/eliza/src/types";
 import { walletProvider } from "./providers/wallet";
-// import { executeCreateToken } from "./actions/createToken";
 import { executeSwap } from "./actions/swap";
 import { executeTransfer } from './actions/transfer';
 import { executeCrossChainSwap } from './actions/crossChainSwap';
