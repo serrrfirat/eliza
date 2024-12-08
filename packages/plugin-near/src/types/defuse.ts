@@ -78,7 +78,7 @@ export interface PublishIntentResponse {
 
 export interface IntentStatus {
     intent_hash: string;
-    status: "PENDING" | "TX_BROADCASTED" | "SETTLED" | "NOT_FOUND_OR_NOT_VALID_ANYMORE";
+    status: "PENDING" | "TX_BROADCASTED" | "SETTLED" | "NOT_FOUND_OR_NOT_VALID";
     data?: {
         hash?: string;
     };

@@ -103,6 +103,26 @@ export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory,
     state.walletInfo = walletInfo;
 }
 
+const POLLING_INTERVAL_MS = 2000; // 2 seconds
+const MAX_POLLING_TIME_MS = 300000; // 5 minutes
+
+async function pollIntentStatus(intentHash: string): Promise<IntentStatus> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < MAX_POLLING_TIME_MS) {
+        const status = await getIntentStatus(intentHash);
+        console.log("Current intent status:", status);
+
+        if (status.status === "SETTLED" || status.status === "NOT_FOUND_OR_NOT_VALID") {
+            return status;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, POLLING_INTERVAL_MS));
+    }
+
+    throw new Error("Timeout waiting for intent to settle");
+}
+
 async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
      state: State, params: CrossChainSwapParams): Promise<any> {
 
@@ -124,8 +144,6 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
         nodeUrl,
     });
 
-    // const signer =  nearConnection.connection.signer
-    // console.log("Signer:", signer);
     const isTestnet = networkId === 'testnet';
     const signer = new InMemorySigner(keyStore);
 
@@ -167,6 +185,12 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     });
 
     console.log("Intent:", intent);
+
+    if (intent.status === "OK") {
+        const finalStatus = await pollIntentStatus(intent.intent_hash);
+        return finalStatus;
+    }
+
     return intent;
 }
 
