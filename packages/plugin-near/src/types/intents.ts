@@ -1,5 +1,37 @@
 import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
+import { field, option, fixedArray } from '@dao-xyz/borsh';
 
+
+export interface SignMessageParams {
+    message: string;
+    recipient: string;
+    nonce: Uint8Array;
+    callbackUrl?: string;
+}
+
+export class Payload {
+    @field({ type: 'u32' })
+    tag: number; // Always the same tag: 2**31 + 413
+
+    @field({ type: 'string' })
+    message: string; // The same message passed in `SignMessageParams.message`
+
+    @field({ type: fixedArray('u8', 32) })
+    nonce: number[]; // The same nonce passed in `SignMessageParams.nonce`
+
+    @field({ type: 'string' })
+    recipient: string; // The same recipient passed in `SignMessageParams.recipient`
+
+    @field({ type: option('string') })
+    callbackUrl?: string;
+
+    constructor({ message, nonce, recipient }: Payload) {
+        this.tag = 2147484061;
+        this.message = message;
+        this.nonce = nonce;
+        this.recipient = recipient;
+    }
+}
 // Quote Types
 export interface QuoteRequest {
     defuse_asset_identifier_in: string;
