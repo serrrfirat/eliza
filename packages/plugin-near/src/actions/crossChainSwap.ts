@@ -421,7 +421,7 @@ async function getPublicKeysOf(runtime: IAgentRuntime, accountId: string): Promi
 
     const account = await nearConnection.account(accountId);
     const result = await account.viewFunction({
-        contractId: "intents.near",
+        contractId: runtime.getSetting("DEFUSE_CONTRACT_ID") || "intents.near",
         methodName: "public_keys_of",
         args: { account_id: accountId }
     });
