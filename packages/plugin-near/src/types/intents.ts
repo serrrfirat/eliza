@@ -75,14 +75,16 @@ export interface FTWithdrawIntent {
 
 export type Intent = TokenDiffIntent | MTBatchTransferIntent | FTWithdrawIntent;
 
-export interface IntentDeadline {
-    timestamp: number;
-    block_number?: number;
-}
+
+/// FIX: Old format
+// export interface IntentDeadline {
+//     timestamp: string;
+//     block_number?: number;
+// }
 
 export interface IntentMessage {
     signer_id: string;
-    deadline: IntentDeadline;
+    deadline: string;
     intents: Intent[];
 }
 

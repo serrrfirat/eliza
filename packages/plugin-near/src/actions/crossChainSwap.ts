@@ -174,9 +174,7 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     console.log("Quote:", quote);
     const intentMessage: IntentMessage = {
         signer_id: settings.accountId,
-        deadline: {
-            timestamp: Math.floor(Date.now() / 1000) + 300, // 5 minutes from now in seconds
-        },
+        deadline: new Date(Date.now() + 300000).toISOString(), // 5 minutes from now in ISO format
         intents: [createTokenDiffIntent(
             quote[0].defuse_asset_identifier_in,
             quote[0].defuse_asset_identifier_out,
