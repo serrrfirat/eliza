@@ -4,6 +4,9 @@
 
 import { settings } from "@ai16z/eliza"
 import type { Transaction } from "../types/deposit"
+import { DefuseAssetIdentifier, DefuseMainnetTokenContractAddress } from "../types/intents"
+import { providers } from "near-api-js"
+import { CodeResult } from "near-api-js/lib/providers/provider"
 const FT_DEPOSIT_GAS = `30${"0".repeat(12)}` // 30 TGAS
 const FT_TRANSFER_GAS = `50${"0".repeat(12)}` // 30 TGAS
 
@@ -110,3 +113,56 @@ export function createBatchDepositNearNativeTransaction(
     },
   ]
 }
+
+type TokenBalances = Record<DefuseMainnetTokenContractAddress , bigint>
+
+
+export async function getDepositedBalances(
+    accountId: string,
+    tokenIds: DefuseMainnetTokenContractAddress[],
+    nearClient: providers.Provider
+  ): Promise<TokenBalances> {
+    // RPC call
+    // Warning: `CodeResult` is not correct type for `call_function`, but it's closest we have.
+    const output = await nearClient.query<CodeResult>({
+      request_type: "call_function",
+      account_id: settings.defuseContractId || "intents.near",
+      method_name: "mt_batch_balance_of",
+      args_base64: btoa(
+        JSON.stringify({
+          account_id: accountId,
+          token_ids: tokenIds,
+        })
+      ),
+      finality: "optimistic",
+    })
+
+    // Decoding response
+    const uint8Array = new Uint8Array(output.result)
+    const decoder = new TextDecoder()
+    const parsed = JSON.parse(decoder.decode(uint8Array))
+
+    // Validating response
+    assert(
+      Array.isArray(parsed) && parsed.every((a) => typeof a === "string"),
+      "Invalid response"
+    )
+    assert(parsed.length === tokenIds.length, "Invalid response")
+
+
+    /// TODO: Need to fix the tokenIds to be correct type. This does not work right now. 
+    // Transforming response
+    const result: TokenBalances = {}
+    for (let i = 0; i < tokenIds.length; i++) {
+      // biome-ignore lint/style/noNonNullAssertion: always within bounds
+      result[tokenIds[i]!] = BigInt(parsed[i])
+    }
+
+    return result
+  }
+
+  export function assert(condition: unknown, msg?: string): asserts condition {
+    if (!condition) {
+      throw new Error(msg)
+    }
+  }
