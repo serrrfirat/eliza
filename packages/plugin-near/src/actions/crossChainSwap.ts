@@ -5,16 +5,18 @@ import { connect, InMemorySigner } from "near-api-js";
 import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
 import { utils } from "near-api-js";
 import { keyStores } from "near-api-js";
-
+import { createBatchDepositNearNep141Transaction, getDepositedBalances, getNearNep141StorageBalance, getNearNep141StorageBalanceOf, sendNearTransaction, TokenBalances } from "../utils/deposit";
 import * as Borsh from "@dao-xyz/borsh";
 import * as js_sha256 from "js-sha256";
 import crypto from "crypto";
 import { CrossChainSwapParams, createTokenDiffIntent, IntentMessage, IntentStatus,
      PublishIntentRequest, PublishIntentResponse, QuoteRequest, QuoteResponse,
-     DefuseAssetIdentifier} from "../types/intents";
+     DefuseAssetIdentifier,
+     DefuseAssets} from "../types/intents";
 import { DefuseMainnetTokenContractAddress, DefuseTestnetTokenContractAddress } from "../types/intents";
 import { KeyPair } from "near-api-js";
 import { Payload, SignMessageParams } from "../types/intents";
+import { providers } from "near-api-js";
 const DEFUSE_RPC_URL = "https://solver-relay-v2.chaindefuser.com/rpc";
 
 
@@ -52,7 +54,7 @@ async function makeRPCRequest<T>(method: string, params: any[]): Promise<T> {
     return data.result;
 }
 
-const getContractAddress = (assetIdentifier: DefuseAssetIdentifier, isTestnet: boolean = false): string => {
+const getContractAddress = (assetIdentifier: DefuseAssetIdentifier, isTestnet: boolean = false): DefuseAssets => {
     // Convert DefuseAssetIdentifier to the corresponding contract address enum key
     console.log("Asset identifier:", assetIdentifier);
     const contractKey = assetIdentifier.toString() as keyof typeof DefuseMainnetTokenContractAddress;
@@ -62,10 +64,14 @@ const getContractAddress = (assetIdentifier: DefuseAssetIdentifier, isTestnet: b
         if (assetIdentifier === DefuseAssetIdentifier.NEAR) {
             return DefuseTestnetTokenContractAddress.NEAR;
         }
-        return '';
+        throw new Error(`Token ${assetIdentifier} is not supported on testnet`);
     }
 
-    return DefuseMainnetTokenContractAddress[contractKey] || '';
+    const address = DefuseMainnetTokenContractAddress[contractKey];
+    if (!address) {
+        throw new Error(`Token ${assetIdentifier} not found in mainnet contract addresses`);
+    }
+    return address;
 };
 
 export const getQuote = async (params: QuoteRequest): Promise<QuoteResponse> => {
@@ -109,12 +115,46 @@ export const getCurrentBlock = async (runtime: IAgentRuntime): Promise<{ blockHe
 };
 
 
-// TODO: this does not deposit anything, fix it
-export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory, state: State) => {
-    const walletInfo = await walletProvider.get(runtime, message, state);
-    state.walletInfo = walletInfo;
+// First check the balance of the user, then deposit the tokens if there are any
+export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory, state: State, tokenIds: DefuseMainnetTokenContractAddress[] | DefuseTestnetTokenContractAddress[], amount: bigint) => {
+    const settings = getRuntimeSettings(runtime);
+    const nearConnection = await connect({
+        networkId: settings.networkId,
+        nodeUrl: settings.nodeUrl,
+    });
+    const nep141balance = await getNearNep141StorageBalance({
+        contractId: settings.defuseContractId,
+        accountId: settings.accountId
+    });
+    const publicKey = await nearConnection.connection.signer.getPublicKey(settings.accountId);
+    const transaction = createBatchDepositNearNep141Transaction(settings.defuseContractId, amount, nep141balance > BigInt(0), BigInt(0));
+
+    for (const tx of transaction) {
+        const result = await sendNearTransaction(nearConnection, settings.accountId, publicKey, settings.defuseContractId, tx);
+        console.log("Transaction result:", result);
+    }
 }
 
+
+async function getBalances(
+    runtime: IAgentRuntime,
+    message: Memory,
+    state: State,
+    tokenIds: (DefuseMainnetTokenContractAddress | DefuseTestnetTokenContractAddress)[],
+    nearClient: providers.Provider
+): Promise<TokenBalances> {
+    const isTestnet = runtime.getSetting("NEAR_NETWORK") === "testnet";
+    const mainnetTokens = tokenIds.filter((id): id is DefuseMainnetTokenContractAddress => !isTestnet);
+    const testnetTokens = tokenIds.filter((id): id is DefuseTestnetTokenContractAddress => isTestnet);
+
+    const tokenBalances = await getDepositedBalances(
+        runtime.getSetting("NEAR_ADDRESS") || "",
+        isTestnet ? testnetTokens : mainnetTokens,
+        nearClient
+    );
+    console.log("Token balances:", tokenBalances);
+    return tokenBalances;
+}
 
 async function pollIntentStatus(intentHash: string): Promise<IntentStatus> {
     const startTime = Date.now();
@@ -166,9 +206,26 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     await keyStore.setKey(settings.networkId, settings.accountId, keyPair);
     const isTestnet = settings.networkId === 'testnet';
 
+    const nearConnection = await connect({
+        networkId: settings.networkId,
+        keyStore,
+        nodeUrl: settings.nodeUrl,
+    });
+
+    const defuseAssetIdentifierIn = getContractAddress(params.defuse_asset_identifier_in, isTestnet);
+    const defuseAssetIdentifierOut = getContractAddress(params.defuse_asset_identifier_out, isTestnet);
+    const tokenBalances = await getBalances(runtime, messageFromMemory, state, [defuseAssetIdentifierIn], nearConnection.connection.provider);
+    if (tokenBalances[defuseAssetIdentifierIn] && tokenBalances[defuseAssetIdentifierIn] < BigInt(params.exact_amount_in)) {
+        const tokenArray = isTestnet ?
+            [defuseAssetIdentifierIn as DefuseTestnetTokenContractAddress] :
+            [defuseAssetIdentifierIn as DefuseMainnetTokenContractAddress];
+        depositIntoDefuse(runtime, messageFromMemory, state, tokenArray, BigInt(params.exact_amount_in));
+    }
+
+
     const quote = await getQuote({
-        defuse_asset_identifier_in: getContractAddress(params.defuse_asset_identifier_in, isTestnet),
-        defuse_asset_identifier_out: getContractAddress(params.defuse_asset_identifier_out, isTestnet),
+        defuse_asset_identifier_in: defuseAssetIdentifierIn,
+        defuse_asset_identifier_out: defuseAssetIdentifierOut,
         exact_amount_in: params.exact_amount_in,
     });
     console.log("Quote:", quote);
@@ -185,12 +242,12 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     const messageString = JSON.stringify(intentMessage);
     const nonce = new Uint8Array(crypto.randomBytes(32));
     const recipient = "intents.near";
-
     const { signature, publicKey } = await signMessage(keyPair, {
         message: messageString,
         recipient,
         nonce
     });
+
     await ensurePublicKeyRegistered(runtime, `ed25519:${publicKey}`);
 
     const intent = await publishIntent({
@@ -388,6 +445,7 @@ interface RuntimeSettings {
     nodeUrl: string;
     accountId: string;
     secretKey: string;
+    defuseContractId: string;
 }
 
 function getRuntimeSettings(runtime: IAgentRuntime): RuntimeSettings {
@@ -405,7 +463,8 @@ function getRuntimeSettings(runtime: IAgentRuntime): RuntimeSettings {
         networkId: runtime.getSetting("NEAR_NETWORK") || "testnet",
         nodeUrl: runtime.getSetting("RPC_URL") || "https://rpc.testnet.near.org",
         accountId: runtime.getSetting("NEAR_ADDRESS") || "",
-        secretKey: runtime.getSetting("NEAR_WALLET_SECRET_KEY") || ""
+        secretKey: runtime.getSetting("NEAR_WALLET_SECRET_KEY") || "",
+        defuseContractId: runtime.getSetting("DEFUSE_CONTRACT_ID") || "intents.near"
     };
 }
 

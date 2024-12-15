@@ -1,14 +1,17 @@
-
 /// Taken from defuse-sdk, will be removed once a proper SDK will be released
 /// https://github.com/defuse-protocol/defuse-sdk/blob/main/src/services/depositService.ts
 
 import { settings } from "@ai16z/eliza"
-import type { Transaction } from "../types/deposit"
-import { DefuseAssetIdentifier, DefuseMainnetTokenContractAddress } from "../types/intents"
-import { providers } from "near-api-js"
+import { FetchError, ResponseError, type GetNearNep141StorageBalanceBoundsRequest, type GetNearNep141StorageBalanceBoundsResponse, type GetNearNep141StorageBalanceOfRequest, type GetNearNep141StorageBalanceOfResponse, type JSONRPCRequest, type Transaction } from "../types/deposit"
+import {  DefuseMainnetTokenContractAddress, DefuseTestnetTokenContractAddress } from "../types/intents"
+import  * as near from "near-api-js"
 import { CodeResult } from "near-api-js/lib/providers/provider"
+import { fullAccessKey } from "near-api-js/lib/transaction"
+import { Near, transactions } from "near-api-js/lib/common-index"
+import { PublicKey } from "near-api-js/lib/utils"
 const FT_DEPOSIT_GAS = `30${"0".repeat(12)}` // 30 TGAS
 const FT_TRANSFER_GAS = `50${"0".repeat(12)}` // 30 TGAS
+const BASE_URL = "https://nearrpc.aurora.dev"
 
 /**
  * Creates a deposit transaction for NEAR.
@@ -41,30 +44,29 @@ export function createBatchDepositNearNep141Transaction(
         ...(isStorageDepositRequired
           ? [
               {
-                type: "FunctionCall" as const,
-                params: {
+                enum: "functionCall",
+                functionCall: {
                   methodName: "storage_deposit",
-                  args: {
+                  args: Buffer.from(JSON.stringify({
                     account_id: settings.defuseContractId || "intents.near",
-                    registration_only: true,
-                  },
-                  gas: FT_DEPOSIT_GAS,
-                  deposit: minStorageBalance.toString(),
+                  })),
+                  gas: BigInt(FT_DEPOSIT_GAS),
+                  deposit: BigInt(minStorageBalance),
                 },
               },
             ]
           : []),
         {
-          type: "FunctionCall",
-          params: {
+          enum: "functionCall",
+          functionCall: {
             methodName: "ft_transfer_call",
-            args: {
+            args: Buffer.from(JSON.stringify({
               receiver_id: settings.defuseContractId || "intents.near",
               amount: amount.toString(),
               msg: "",
-            },
-            gas: FT_TRANSFER_GAS,
-            deposit: "1",
+            })),
+            gas: BigInt(FT_TRANSFER_GAS),
+            deposit: BigInt(1),
           },
         },
       ],
@@ -86,27 +88,27 @@ export function createBatchDepositNearNativeTransaction(
         ...(isWrapNearRequired
           ? [
               {
-                type: "FunctionCall" as const,
-                params: {
+                enum: "functionCall",
+                functionCall: {
                   methodName: "near_deposit",
-                  args: {},
-                  gas: FT_DEPOSIT_GAS,
-                  deposit: (wrapAmount + minStorageBalance).toString(),
+                  args: Buffer.from(JSON.stringify({})),
+                  gas: BigInt(FT_DEPOSIT_GAS),
+                  deposit: BigInt(wrapAmount + minStorageBalance),
                 },
               },
             ]
           : []),
         {
-          type: "FunctionCall",
-          params: {
+          enum: "functionCall",
+          functionCall: {
             methodName: "ft_transfer_call",
-            args: {
+            args: Buffer.from(JSON.stringify({
               receiver_id: settings.defuseContractId || "intents.near",
               amount: amount.toString(),
               msg: "",
-            },
-            gas: FT_TRANSFER_GAS,
-            deposit: "1",
+            })),
+            gas: BigInt(FT_TRANSFER_GAS),
+            deposit: BigInt(1),
           },
         },
       ],
@@ -114,13 +116,14 @@ export function createBatchDepositNearNativeTransaction(
   ]
 }
 
-type TokenBalances = Record<DefuseMainnetTokenContractAddress , bigint>
-
+export type TokenBalances = {
+    [key in DefuseMainnetTokenContractAddress | DefuseTestnetTokenContractAddress]?: bigint
+}
 
 export async function getDepositedBalances(
     accountId: string,
-    tokenIds: DefuseMainnetTokenContractAddress[],
-    nearClient: providers.Provider
+    tokenIds: DefuseMainnetTokenContractAddress[] | DefuseTestnetTokenContractAddress[],
+    nearClient: near.providers.Provider
   ): Promise<TokenBalances> {
     // RPC call
     // Warning: `CodeResult` is not correct type for `call_function`, but it's closest we have.
@@ -150,7 +153,6 @@ export async function getDepositedBalances(
     assert(parsed.length === tokenIds.length, "Invalid response")
 
 
-    /// TODO: Need to fix the tokenIds to be correct type. This does not work right now. 
     // Transforming response
     const result: TokenBalances = {}
     for (let i = 0; i < tokenIds.length; i++) {
@@ -165,4 +167,107 @@ export async function getDepositedBalances(
     if (!condition) {
       throw new Error(msg)
     }
+  }
+
+  export async function getNearNep141StorageBalanceOf(
+    params: GetNearNep141StorageBalanceOfRequest["params"][0]
+  ): Promise<GetNearNep141StorageBalanceOfResponse["result"]> {
+    const json = await jsonRPCRequest<GetNearNep141StorageBalanceOfRequest>(
+      "query",
+      params
+    )
+    return json.result
+  }
+
+  export async function getNearNep141StorageBalanceBounds(
+    params: GetNearNep141StorageBalanceBoundsRequest["params"][0]
+  ): Promise<GetNearNep141StorageBalanceBoundsResponse["result"]> {
+    const json =
+      await jsonRPCRequest<GetNearNep141StorageBalanceBoundsRequest>(
+        "query",
+        params
+      )
+    return json.result
+  }
+
+  export async function jsonRPCRequest<
+  T extends JSONRPCRequest<unknown, unknown>,
+>(method: T["method"], params: T["params"][0]) {
+  const response = await request(`${BASE_URL}`, {
+    id: "dontcare",
+    jsonrpc: "2.0",
+    method,
+    params: params !== undefined ? params : undefined,
+  })
+  return response.json()
+}
+
+async function request(url: string, body: unknown): Promise<Response> {
+    let response: Response
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      })
+    } catch (err) {
+      throw new FetchError("The request failed")
+    }
+
+    if (response.ok) {
+      return response
+    }
+
+    throw new ResponseError(response, "Response returned an error code")
+  }
+
+  export const getNearNep141StorageBalance = async ({
+    contractId,
+    accountId,
+  }: {
+    contractId: string
+    accountId: string
+  }): Promise<bigint> => {
+    try {
+      const args = { account_id: accountId }
+      const argsBase64 = Buffer.from(JSON.stringify(args)).toString("base64")
+
+      const response = await getNearNep141StorageBalanceOf({
+        request_type: "call_function",
+        method_name: "storage_balance_of",
+        account_id: contractId,
+        args_base64: argsBase64,
+        finality: "optimistic",
+      })
+
+      const uint8Array = new Uint8Array(response.result)
+      const decoder = new TextDecoder()
+      const parsed = JSON.parse(decoder.decode(uint8Array))
+      return BigInt(parsed?.total || "0")
+    } catch (err: unknown) {
+      throw new Error("Error fetching balance")
+    }
+  }
+
+  export async function sendNearTransaction(nearClient: Near, sender: string, publicKey: PublicKey, receiver: string, nearTransaction: Transaction["NEAR"]) {
+
+    const block = await nearClient.connection.provider.block({
+        finality: 'final'
+    });
+    const accessKey = fullAccessKey()
+
+     // create transaction
+  const transaction = transactions.createTransaction(
+    sender,
+    publicKey,
+    receiver,
+    accessKey.nonce++,
+    nearTransaction.actions,
+    new Uint8Array(Buffer.from(block.header.hash))
+  );
+
+  const signedTransaction = await near.transactions.signTransaction(transaction, nearClient.connection.signer);
+  console.log("Transaction result:", signedTransaction);
   }

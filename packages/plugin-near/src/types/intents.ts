@@ -141,6 +141,8 @@ export interface CrossChainSwapParams {
     defuse_asset_identifier_out: DefuseAssetIdentifier;
 }
 
+export type DefuseAssets = DefuseMainnetTokenContractAddress | DefuseTestnetTokenContractAddress
+
 export enum DefuseMainnetTokenContractAddress {
     AURORA = "nep141:aaaaa20d9e0e2461697782ef11675f668207961.factory.bridge.near",
     NEAR = "nep141:wrap.near",
