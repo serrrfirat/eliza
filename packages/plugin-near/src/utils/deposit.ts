@@ -43,32 +43,27 @@ export function createBatchDepositNearNep141Transaction(
       actions: [
         ...(isStorageDepositRequired
           ? [
-              {
-                enum: "functionCall",
-                functionCall: {
-                  methodName: "storage_deposit",
-                  args: Buffer.from(JSON.stringify({
-                    account_id: settings.defuseContractId || "intents.near",
-                  })),
-                  gas: BigInt(FT_DEPOSIT_GAS),
-                  deposit: BigInt(minStorageBalance),
+              transactions.functionCall(
+                "storage_deposit",
+                {
+                  account_id: settings.defuseContractId || "intents.near",
+                  registration_only: true,
                 },
-              },
+                BigInt(FT_DEPOSIT_GAS),
+                minStorageBalance
+              ),
             ]
           : []),
-        {
-          enum: "functionCall",
-          functionCall: {
-            methodName: "ft_transfer_call",
-            args: Buffer.from(JSON.stringify({
-              receiver_id: settings.defuseContractId || "intents.near",
-              amount: amount.toString(),
-              msg: "",
-            })),
-            gas: BigInt(FT_TRANSFER_GAS),
-            deposit: BigInt(1),
+        transactions.functionCall(
+          "ft_transfer_call",
+          {
+            receiver_id: settings.defuseContractId || "intents.near",
+            amount: amount.toString(),
+            msg: "",
           },
-        },
+          BigInt(FT_TRANSFER_GAS),
+          BigInt(1)
+        ),
       ],
     },
   ]
@@ -87,30 +82,24 @@ export function createBatchDepositNearNativeTransaction(
       actions: [
         ...(isWrapNearRequired
           ? [
-              {
-                enum: "functionCall",
-                functionCall: {
-                  methodName: "near_deposit",
-                  args: Buffer.from(JSON.stringify({})),
-                  gas: BigInt(FT_DEPOSIT_GAS),
-                  deposit: BigInt(wrapAmount + minStorageBalance),
-                },
-              },
+              transactions.functionCall(
+                "near_deposit",
+                {},
+                BigInt(FT_DEPOSIT_GAS),
+                BigInt(wrapAmount + minStorageBalance)
+              ),
             ]
           : []),
-        {
-          enum: "functionCall",
-          functionCall: {
-            methodName: "ft_transfer_call",
-            args: Buffer.from(JSON.stringify({
-              receiver_id: settings.defuseContractId || "intents.near",
-              amount: amount.toString(),
-              msg: "",
-            })),
-            gas: BigInt(FT_TRANSFER_GAS),
-            deposit: BigInt(1),
+        transactions.functionCall(
+          "ft_transfer_call",
+          {
+            receiver_id: settings.defuseContractId || "intents.near",
+            amount: amount.toString(),
+            msg: "",
           },
-        },
+          BigInt(FT_TRANSFER_GAS),
+          BigInt(1)
+        ),
       ],
     },
   ]
@@ -231,6 +220,7 @@ async function request(url: string, body: unknown): Promise<Response> {
     accountId: string
   }): Promise<bigint> => {
     try {
+      console.log("Getting storage balance of:", contractId, accountId);
       const args = { account_id: accountId }
       const argsBase64 = Buffer.from(JSON.stringify(args)).toString("base64")
 
@@ -242,12 +232,15 @@ async function request(url: string, body: unknown): Promise<Response> {
         finality: "optimistic",
       })
 
+      console.log("Storage balance response:", response);
       const uint8Array = new Uint8Array(response.result)
       const decoder = new TextDecoder()
       const parsed = JSON.parse(decoder.decode(uint8Array))
+      console.log("Parsed storage balance:", parsed);
       return BigInt(parsed?.total || "0")
     } catch (err: unknown) {
-      throw new Error("Error fetching balance")
+      console.error("Error fetching balance:", err);
+      throw new Error(`Error fetching balance: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
@@ -257,7 +250,9 @@ async function request(url: string, body: unknown): Promise<Response> {
         finality: 'final'
     });
     const accessKey = fullAccessKey()
-
+    const recentBlockHash = near.utils.serialize.base_decode(
+        block.header.hash
+      );
      // create transaction
   const transaction = transactions.createTransaction(
     sender,
@@ -265,9 +260,9 @@ async function request(url: string, body: unknown): Promise<Response> {
     receiver,
     accessKey.nonce++,
     nearTransaction.actions,
-    new Uint8Array(Buffer.from(block.header.hash))
+    recentBlockHash
   );
-
+  console.log("Transaction:", transaction);
   const signedTransaction = await near.transactions.signTransaction(transaction, nearClient.connection.signer);
   console.log("Transaction result:", signedTransaction);
   }

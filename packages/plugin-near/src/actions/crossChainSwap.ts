@@ -1,7 +1,7 @@
 // import { ChainType, SendTransactionNearParams, Action as DefuseAction, SendTransactionEVMParams } from "@defuse-protocol/defuse-sdk";
 import { ActionExample,composeContext,generateObject,IAgentRuntime,Memory,ModelClass,State,type Action,HandlerCallback } from "@ai16z/eliza";
 import { walletProvider } from "../providers/wallet";
-import { connect, InMemorySigner } from "near-api-js";
+import { connect, InMemorySigner, Near } from "near-api-js";
 import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
 import { utils } from "near-api-js";
 import { keyStores } from "near-api-js";
@@ -116,17 +116,13 @@ export const getCurrentBlock = async (runtime: IAgentRuntime): Promise<{ blockHe
 
 
 // First check the balance of the user, then deposit the tokens if there are any
-export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory, state: State, tokenIds: DefuseMainnetTokenContractAddress[] | DefuseTestnetTokenContractAddress[], amount: bigint) => {
+export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory, state: State, tokenIds: DefuseMainnetTokenContractAddress[] | DefuseTestnetTokenContractAddress[], amount: bigint, nearConnection: Near) => {
     const settings = getRuntimeSettings(runtime);
-    const nearConnection = await connect({
-        networkId: settings.networkId,
-        nodeUrl: settings.nodeUrl,
-    });
     const nep141balance = await getNearNep141StorageBalance({
-        contractId: settings.defuseContractId,
+        contractId: tokenIds[0].replace('nep141:', ''),
         accountId: settings.accountId
     });
-    const publicKey = await nearConnection.connection.signer.getPublicKey(settings.accountId);
+    const publicKey = await nearConnection.connection.signer.getPublicKey(settings.accountId, settings.networkId);
     const transaction = createBatchDepositNearNep141Transaction(settings.defuseContractId, amount, nep141balance > BigInt(0), BigInt(0));
 
     for (const tx of transaction) {
@@ -215,11 +211,16 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     const defuseAssetIdentifierIn = getContractAddress(params.defuse_asset_identifier_in, isTestnet);
     const defuseAssetIdentifierOut = getContractAddress(params.defuse_asset_identifier_out, isTestnet);
     const tokenBalances = await getBalances(runtime, messageFromMemory, state, [defuseAssetIdentifierIn], nearConnection.connection.provider);
-    if (tokenBalances[defuseAssetIdentifierIn] && tokenBalances[defuseAssetIdentifierIn] < BigInt(params.exact_amount_in)) {
+    console.log("Token balances:", tokenBalances);
+    console.log(tokenBalances[defuseAssetIdentifierIn]);
+    console.log("BigInt(params.exact_amount_in):", BigInt(params.exact_amount_in));
+    if (tokenBalances[defuseAssetIdentifierIn] != undefined &&
+        tokenBalances[defuseAssetIdentifierIn] < BigInt(params.exact_amount_in)) {
         const tokenArray = isTestnet ?
             [defuseAssetIdentifierIn as DefuseTestnetTokenContractAddress] :
             [defuseAssetIdentifierIn as DefuseMainnetTokenContractAddress];
-        depositIntoDefuse(runtime, messageFromMemory, state, tokenArray, BigInt(params.exact_amount_in));
+        console.log("Depositing into Defuse...");
+        depositIntoDefuse(runtime, messageFromMemory, state, tokenArray, BigInt(params.exact_amount_in), nearConnection);
     }
 
 
