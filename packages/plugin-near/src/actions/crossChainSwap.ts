@@ -50,13 +50,11 @@ async function makeRPCRequest<T>(method: string, params: any[]): Promise<T> {
     if (data.error) {
         throw new Error(`RPC error: ${data.error.message}`);
     }
-    console.log("RPC response:", data.result);
     return data.result;
 }
 
 const getContractAddress = (assetIdentifier: DefuseAssetIdentifier, isTestnet: boolean = false): DefuseAssets => {
     // Convert DefuseAssetIdentifier to the corresponding contract address enum key
-    console.log("Asset identifier:", assetIdentifier);
     const contractKey = assetIdentifier.toString() as keyof typeof DefuseMainnetTokenContractAddress;
 
     if (isTestnet) {
@@ -125,7 +123,6 @@ export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory,
         accountId: settings.accountId
     });
     const publicKey = await nearConnection.connection.signer.getPublicKey(settings.accountId, settings.networkId);
-    console.log("nep141balance:", nep141balance);
     const transaction = createBatchDepositNearNep141Transaction(contractId, amount, !(nep141balance > BigInt(0)), BigInt(0));
 
     for (const tx of transaction) {
@@ -159,7 +156,6 @@ async function pollIntentStatus(intentHash: string): Promise<IntentStatus> {
 
     while (Date.now() - startTime < MAX_POLLING_TIME_MS) {
         const status = await getIntentStatus(intentHash);
-        console.log("Current intent status:", status);
 
         if (status.status === "SETTLED" || status.status === "NOT_FOUND_OR_NOT_VALID") {
             return status;
@@ -213,15 +209,12 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     const defuseAssetIdentifierIn = getContractAddress(params.defuse_asset_identifier_in, isTestnet);
     const defuseAssetIdentifierOut = getContractAddress(params.defuse_asset_identifier_out, isTestnet);
     const tokenBalances = await getBalances(runtime, messageFromMemory, state, [defuseAssetIdentifierIn], nearConnection.connection.provider);
-    console.log("Token balances:", tokenBalances);
-    console.log(tokenBalances[defuseAssetIdentifierIn]);
-    console.log("BigInt(params.exact_amount_in):", BigInt(params.exact_amount_in));
+
     if (tokenBalances[defuseAssetIdentifierIn] != undefined &&
         tokenBalances[defuseAssetIdentifierIn] < BigInt(params.exact_amount_in)) {
         const tokenArray = isTestnet ?
             [defuseAssetIdentifierIn as DefuseTestnetTokenContractAddress] :
             [defuseAssetIdentifierIn as DefuseMainnetTokenContractAddress];
-        console.log("Depositing into Defuse...");
         await depositIntoDefuse(runtime, messageFromMemory, state, tokenArray, BigInt(params.exact_amount_in), nearConnection);
     }
 
@@ -271,8 +264,6 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
             public_key: `ed25519:${publicKey}`
         }
     });
-
-    console.log("Intent:", intent);
 
     if (intent.status === "OK") {
         const finalStatus = await pollIntentStatus(intent.intent_hash);
@@ -403,9 +394,7 @@ export const executeCrossChainSwap: Action = {
 
         try {
             const intent = await crossChainSwap(runtime, message, state, response);
-            console.log("Swap completed successfully!");
             const txHashes = intent.data?.hash;
-
             const responseMsg = {
                 text: `Swap completed successfully! Transaction hashes: ${txHashes}`,
             };
@@ -413,7 +402,6 @@ export const executeCrossChainSwap: Action = {
             callback?.(responseMsg);
             return true;
         } catch (error) {
-            console.error("Error during cross-chain swap:", error);
             const responseMsg = {
                 text: `Error during cross-chain swap: ${error instanceof Error ? error.message : String(error)}`,
             };
@@ -500,8 +488,6 @@ async function getPublicKeysOf(runtime: IAgentRuntime, accountId: string): Promi
 async function ensurePublicKeyRegistered(runtime: IAgentRuntime, publicKey: string): Promise<void> {
     const settings = getRuntimeSettings(runtime);
     const existingKeys = await getPublicKeysOf(runtime, settings.accountId);
-    console.log("Existing keys:", existingKeys);
-    console.log("Public key:", publicKey);
     if (!existingKeys.has(publicKey)) {
         console.log(`Public key ${publicKey} not found, registering...`);
         await addPublicKeyToIntents(runtime, publicKey);

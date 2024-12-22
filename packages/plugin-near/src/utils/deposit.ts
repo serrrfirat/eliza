@@ -37,7 +37,6 @@ export function createBatchDepositNearNep141Transaction(
   isStorageDepositRequired: boolean,
   minStorageBalance: bigint
 ): Transaction["NEAR"][] {
-    console.log("isStorageDepositRequired:", isStorageDepositRequired);
   return [
     {
       receiverId: assetAccountId,
@@ -221,7 +220,6 @@ async function request(url: string, body: unknown): Promise<Response> {
     accountId: string
   }): Promise<bigint> => {
     try {
-      console.log("Getting storage balance of:", contractId, accountId);
       const args = { account_id: accountId }
       const argsBase64 = Buffer.from(JSON.stringify(args)).toString("base64")
 
@@ -235,7 +233,6 @@ async function request(url: string, body: unknown): Promise<Response> {
       const uint8Array = new Uint8Array(response.result)
       const decoder = new TextDecoder()
       const parsed = JSON.parse(decoder.decode(uint8Array))
-      console.log("Parsed storage balance:", parsed);
       return BigInt(parsed?.total || "0")
     } catch (err: unknown) {
       console.error("Error fetching balance:", err);
@@ -258,8 +255,7 @@ async function request(url: string, body: unknown): Promise<Response> {
     const recentBlockHash = near.utils.serialize.base_decode(
         block.header.hash
       );
-     // create transaction
-      console.log("nearTransaction.receiverId:", nearTransaction.receiverId);
+
   const transaction = transactions.createTransaction(
     sender,
     publicKey,
@@ -268,7 +264,6 @@ async function request(url: string, body: unknown): Promise<Response> {
     nearTransaction.actions,
     recentBlockHash
   );
-  console.log("Transaction:", transaction);
   try {
     const signedTransaction = await near.transactions.signTransaction(transaction, nearClient.connection.signer, sender, nearClient.connection.networkId);
     // send the signed transaction
