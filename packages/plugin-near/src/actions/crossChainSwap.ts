@@ -118,15 +118,18 @@ export const getCurrentBlock = async (runtime: IAgentRuntime): Promise<{ blockHe
 // First check the balance of the user, then deposit the tokens if there are any
 export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory, state: State, tokenIds: DefuseMainnetTokenContractAddress[] | DefuseTestnetTokenContractAddress[], amount: bigint, nearConnection: Near) => {
     const settings = getRuntimeSettings(runtime);
+    const contractId = tokenIds[0].replace('nep141:', '');
+
     const nep141balance = await getNearNep141StorageBalance({
-        contractId: tokenIds[0].replace('nep141:', ''),
+        contractId,
         accountId: settings.accountId
     });
     const publicKey = await nearConnection.connection.signer.getPublicKey(settings.accountId, settings.networkId);
-    const transaction = createBatchDepositNearNep141Transaction(settings.defuseContractId, amount, nep141balance > BigInt(0), BigInt(0));
+    console.log("nep141balance:", nep141balance);
+    const transaction = createBatchDepositNearNep141Transaction(contractId, amount, !(nep141balance > BigInt(0)), BigInt(0));
 
     for (const tx of transaction) {
-        const result = await sendNearTransaction(nearConnection, settings.accountId, publicKey, settings.defuseContractId, tx);
+        const result = await sendNearTransaction(nearConnection, settings.accountId, publicKey, contractId, tx);
         console.log("Transaction result:", result);
     }
 }
@@ -148,7 +151,6 @@ async function getBalances(
         isTestnet ? testnetTokens : mainnetTokens,
         nearClient
     );
-    console.log("Token balances:", tokenBalances);
     return tokenBalances;
 }
 

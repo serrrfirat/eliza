@@ -5,7 +5,7 @@ import { settings } from "@ai16z/eliza"
 import { FetchError, ResponseError, type GetNearNep141StorageBalanceBoundsRequest, type GetNearNep141StorageBalanceBoundsResponse, type GetNearNep141StorageBalanceOfRequest, type GetNearNep141StorageBalanceOfResponse, type JSONRPCRequest, type Transaction } from "../types/deposit"
 import {  DefuseMainnetTokenContractAddress, DefuseTestnetTokenContractAddress } from "../types/intents"
 import  * as near from "near-api-js"
-import { CodeResult } from "near-api-js/lib/providers/provider"
+import { AccessKeyView, CodeResult } from "near-api-js/lib/providers/provider"
 import { fullAccessKey } from "near-api-js/lib/transaction"
 import { Near, transactions } from "near-api-js/lib/common-index"
 import { PublicKey } from "near-api-js/lib/utils"
@@ -37,6 +37,7 @@ export function createBatchDepositNearNep141Transaction(
   isStorageDepositRequired: boolean,
   minStorageBalance: bigint
 ): Transaction["NEAR"][] {
+    console.log("isStorageDepositRequired:", isStorageDepositRequired);
   return [
     {
       receiverId: assetAccountId,
@@ -231,8 +232,6 @@ async function request(url: string, body: unknown): Promise<Response> {
         args_base64: argsBase64,
         finality: "optimistic",
       })
-
-      console.log("Storage balance response:", response);
       const uint8Array = new Uint8Array(response.result)
       const decoder = new TextDecoder()
       const parsed = JSON.parse(decoder.decode(uint8Array))
@@ -249,20 +248,34 @@ async function request(url: string, body: unknown): Promise<Response> {
     const block = await nearClient.connection.provider.block({
         finality: 'final'
     });
-    const accessKey = fullAccessKey()
+    const accessKeyResponse: AccessKeyView = await nearClient.connection.provider.query({
+        request_type: "view_access_key",
+        finality: "final",
+        account_id: sender,
+        public_key: publicKey.toString(),
+      });
+
     const recentBlockHash = near.utils.serialize.base_decode(
         block.header.hash
       );
      // create transaction
+      console.log("nearTransaction.receiverId:", nearTransaction.receiverId);
   const transaction = transactions.createTransaction(
     sender,
     publicKey,
-    receiver,
-    accessKey.nonce++,
+    nearTransaction.receiverId,
+    BigInt(accessKeyResponse.nonce) + BigInt(1),
     nearTransaction.actions,
     recentBlockHash
   );
   console.log("Transaction:", transaction);
-  const signedTransaction = await near.transactions.signTransaction(transaction, nearClient.connection.signer);
-  console.log("Transaction result:", signedTransaction);
+  try {
+    const signedTransaction = await near.transactions.signTransaction(transaction, nearClient.connection.signer, sender, nearClient.connection.networkId);
+    // send the signed transaction
+    const result = await nearClient.connection.provider.sendTransaction(signedTransaction[1]);
+    console.log("Transaction result:", result);
+    console.log("Transaction status:", result.status);
+  } catch (err) {
+    console.error("Error sending transaction:", err);
+  }
   }
