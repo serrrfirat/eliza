@@ -222,7 +222,7 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
             [defuseAssetIdentifierIn as DefuseTestnetTokenContractAddress] :
             [defuseAssetIdentifierIn as DefuseMainnetTokenContractAddress];
         console.log("Depositing into Defuse...");
-        depositIntoDefuse(runtime, messageFromMemory, state, tokenArray, BigInt(params.exact_amount_in), nearConnection);
+        await depositIntoDefuse(runtime, messageFromMemory, state, tokenArray, BigInt(params.exact_amount_in), nearConnection);
     }
 
 
@@ -232,9 +232,14 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
         exact_amount_in: params.exact_amount_in,
     });
     console.log("Quote:", quote);
+
+    if (!quote || !Array.isArray(quote) || quote.length === 0) {
+        throw new Error("Failed to get quote from Defuse. Response: " + JSON.stringify(quote));
+    }
+
     const intentMessage: IntentMessage = {
         signer_id: settings.accountId,
-        deadline: new Date(Date.now() + 300000).toISOString(), // 5 minutes from now in ISO format
+        deadline: new Date(Date.now() + 300000).toISOString(),
         intents: [createTokenDiffIntent(
             quote[0].defuse_asset_identifier_in,
             quote[0].defuse_asset_identifier_out,
@@ -432,6 +437,7 @@ async function addPublicKeyToIntents(runtime: IAgentRuntime, publicKey: string):
 
     const account = await nearConnection.account(settings.accountId);
 
+    console.log("Adding public key to intents contract:", publicKey);
     await account.functionCall({
         contractId: "intents.near",
         methodName: "add_public_key",
