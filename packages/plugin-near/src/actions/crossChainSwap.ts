@@ -5,14 +5,15 @@ import { connect, InMemorySigner, Near } from "near-api-js";
 import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
 import { utils } from "near-api-js";
 import { keyStores } from "near-api-js";
-import { createBatchDepositNearNep141Transaction, getDepositedBalances, getNearNep141StorageBalance, getNearNep141StorageBalanceOf, sendNearTransaction, TokenBalances } from "../utils/deposit";
+import { createBatchDepositNearNep141Transaction, getDepositedBalances,
+    getNearNep141StorageBalance, getNearNep141StorageBalanceOf, sendNearTransaction, TokenBalances } from "../utils/deposit";
 import * as Borsh from "@dao-xyz/borsh";
 import * as js_sha256 from "js-sha256";
 import crypto from "crypto";
 import { CrossChainSwapParams, createTokenDiffIntent, IntentMessage, IntentStatus,
      PublishIntentRequest, PublishIntentResponse, QuoteRequest, QuoteResponse,
      DefuseAssetIdentifier,
-     DefuseAssets} from "../types/intents";
+     DefuseAssets, WithdrawFromDefuseParams} from "../types/intents";
 import { DefuseMainnetTokenContractAddress, DefuseTestnetTokenContractAddress } from "../types/intents";
 import { KeyPair } from "near-api-js";
 import { Payload, SignMessageParams } from "../types/intents";
@@ -493,5 +494,69 @@ async function ensurePublicKeyRegistered(runtime: IAgentRuntime, publicKey: stri
         await addPublicKeyToIntents(runtime, publicKey);
     } else {
         console.log(`Public key ${publicKey} already registered`);
+    }
+}
+
+
+async function withdrawFromDefuse(runtime: IAgentRuntime, message: Memory, state: State, params: WithdrawFromDefuseParams): Promise<any> {
+    try {
+        const settings = getRuntimeSettings(runtime);
+        const keyStore = new keyStores.InMemoryKeyStore();
+        const keyPair = utils.KeyPair.fromString(settings.secretKey as KeyPairString);
+        await keyStore.setKey(settings.networkId, settings.accountId, keyPair);
+
+        // Generate nonce using crypto
+        const nonce = new Uint8Array(crypto.randomBytes(32));
+
+        // Create intent message
+        const intentMessage: IntentMessage = {
+            signer_id: settings.accountId,
+            deadline: new Date(Date.now() + 300000).toISOString(), // 5 minutes from now
+            intents: [{
+                intent: "ft_withdraw",
+                token: params.token,
+                receiver_id: params.destination_address,
+                amount: params.amount,
+                msg: params.network !== 'near' ? `WITHDRAW_TO:${params.destination_address}` : ''
+            }]
+        };
+
+        const messageString = JSON.stringify(intentMessage);
+        const recipient = "intents.near";
+
+        // Sign the message
+        const { signature, publicKey } = await signMessage(keyPair, {
+            message: messageString,
+            recipient,
+            nonce
+        });
+
+        // Ensure public key is registered
+        await ensurePublicKeyRegistered(runtime, `ed25519:${publicKey}`);
+
+        // Publish intent
+        const intent = await publishIntent({
+            quote_hashes: [], // Empty for withdrawals
+            signed_data: {
+                payload: {
+                    message: messageString,
+                    nonce: Buffer.from(nonce).toString('base64'),
+                    recipient
+                },
+                standard: "nep413",
+                signature: `ed25519:${signature}`,
+                public_key: `ed25519:${publicKey}`
+            }
+        });
+
+        if (intent.status === "OK") {
+            const finalStatus = await pollIntentStatus(intent.intent_hash);
+            return finalStatus;
+        }
+
+        return intent;
+    } catch (error) {
+        console.error("Error in withdrawFromDefuse:", error);
+        throw error;
     }
 }

@@ -201,3 +201,11 @@ export enum DefuseAssetIdentifier {
     ETH_ARB = "ETH_ARB",
     AAVE = "AAVE"
 }
+
+
+export interface WithdrawFromDefuseParams {
+    destination_address: string;
+    token: string;
+    amount: string;
+    network?: string;
+}
