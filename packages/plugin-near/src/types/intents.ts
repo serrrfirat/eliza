@@ -75,13 +75,6 @@ export interface FTWithdrawIntent {
 
 export type Intent = TokenDiffIntent | MTBatchTransferIntent | FTWithdrawIntent;
 
-
-/// FIX: Old format
-// export interface IntentDeadline {
-//     timestamp: string;
-//     block_number?: number;
-// }
-
 export interface IntentMessage {
     signer_id: string;
     deadline: string;
@@ -137,75 +130,14 @@ export const createTokenDiffIntent = (
 
 export interface CrossChainSwapParams {
     exact_amount_in: string;
-    defuse_asset_identifier_in: DefuseAssetIdentifier;
-    defuse_asset_identifier_out: DefuseAssetIdentifier;
+    defuse_asset_identifier_in: string;
+    defuse_asset_identifier_out: string;
 }
 
-export type DefuseAssets = DefuseMainnetTokenContractAddress | DefuseTestnetTokenContractAddress
-
-export enum DefuseMainnetTokenContractAddress {
-    AURORA = "nep141:aaaaa20d9e0e2461697782ef11675f668207961.factory.bridge.near",
-    NEAR = "nep141:wrap.near",
-    ETHER = "nep141:aurora",
-    USDC = "nep141:17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1",
-    SWEAT = "nep141:sweat.near",
-    USDT = "nep141:usdt.tether-token.near",
-    MOGCOIN = "nep141:eth-0xaaee1a9723aadb7afa2810263653a34ba2c21c7a.omft.near",
-    PEPE = "nep141:eth-0x6982508145454ce325ddbe47a25d4ec3d2311933.omft.near",
-    SHIBAINU = "nep141:eth-0x95ad61b0a150d79219dcf64e1e6cc01f0b64c4ce.omft.near",
-    USDC_E = "nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near",
-    USDT_E = "nep141:eth-0xdac17f958d2ee523a2206206994597c13d831ec7.omft.near",
-    DOGE = "nep141:doge.omft.near",
-    BRETT = "nep141:base-0x532f27101965dd16442e59d40670faf5ebb142e4.omft.near",
-    ARB = "nep141:arb-0x912ce59144191c1204e64559fe8253a0e49e6548.omft.near",
-    UNI = "nep141:eth-0x1f9840a85d5af5bf1d1762f925bdaddc4201f984.omft.near",
-    LINK = "nep141:eth-0x514910771af9ca656af840dff83e8264ecf986ca.omft.near",
-    SOL = "nep141:sol.omft.near",
-    ETH_OMFT = "nep141:eth.omft.near",
-    ETH_BASE = "nep141:base.omft.near",
-    ETH_ARB = "nep141:arb.omft.near",
-    AAVE = "nep141:eth-0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9.omft.near",
-    BTC = "nep141:btc.omft.near",
-}
-
-export enum DefuseTestnetTokenContractAddress {
-    NEAR = "wrap.testnet",
-}
-
-export enum DefuseAssetIdentifier {
-    // Native tokens
-    NEAR = "NEAR",
-    ETH = "ETH",
-    BTC = "BTC",
-    SOL = "SOL",
-
-    // Stablecoins
-    USDC = "USDC",
-    USDT = "USDT",
-    USDC_E = "USDC_E",
-    USDT_E = "USDT_E",
-
-    // Other tokens
-    AURORA = "AURORA",
-    SWEAT = "SWEAT",
-    MOGCOIN = "MOGCOIN",
-    PEPE = "PEPE",
-    SHIBAINU = "SHIBAINU",
-    DOGE = "DOGE",
-    BRETT = "BRETT",
-    ARB = "ARB",
-    UNI = "UNI",
-    LINK = "LINK",
-    ETH_OMFT = "ETH_OMFT",
-    ETH_BASE = "ETH_BASE",
-    ETH_ARB = "ETH_ARB",
-    AAVE = "AAVE"
-}
-
-
-export interface WithdrawFromDefuseParams {
+export interface CrossChainSwapAndWithdrawParams {
+    exact_amount_in: string;
+    defuse_asset_identifier_in: string;
+    defuse_asset_identifier_out: string;
     destination_address: string;
-    token: string;
-    amount: string;
     network?: string;
 }

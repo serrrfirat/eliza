@@ -16,7 +16,7 @@
         "borsh": "0.7.0",
         "js-sha256": "^0.11.0",
         "viem": "2.10.0",
-        "fetch": "3.3.2"
+        "fetch": "1.1.0"
     },
     "devDependencies": {
         "eslint": "^9.15.0",

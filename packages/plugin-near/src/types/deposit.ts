@@ -27,18 +27,6 @@ export type DepositEvent = {
   error?: string
 }
 
-// export interface FunctionCallAction {
-//   type: "FunctionCall"
-//   params: {
-//     methodName: string
-//     args: object
-//     gas: string
-//     deposit: string
-//   }
-// }
-
-// export type Action = FunctionCallAction
-
 export interface SendTransactionNearParams {
   receiverId: string
   actions: Array<Action>

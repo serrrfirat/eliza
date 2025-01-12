@@ -6,6 +6,7 @@
         "moduleResolution": "node",
         "outDir": "dist",
         "rootDir": "./src",
+        "resolveJsonModule": true,
         "strict": true,
         "esModuleInterop": true,
         "skipLibCheck": true,
@@ -16,7 +17,9 @@
         ],
         "declaration": true,
         "paths": {
-            "@defuse-protocol/defuse-sdk": ["./node_modules/@defuse-protocol/defuse-sdk"]
+            "@defuse-protocol/defuse-sdk": [
+                "./node_modules/@defuse-protocol/defuse-sdk"
+            ]
         }
     },
     "include": [

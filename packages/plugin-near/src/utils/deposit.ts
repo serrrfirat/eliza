@@ -3,12 +3,12 @@
 
 import { settings } from "@ai16z/eliza"
 import { FetchError, ResponseError, type GetNearNep141StorageBalanceBoundsRequest, type GetNearNep141StorageBalanceBoundsResponse, type GetNearNep141StorageBalanceOfRequest, type GetNearNep141StorageBalanceOfResponse, type JSONRPCRequest, type Transaction } from "../types/deposit"
-import {  DefuseMainnetTokenContractAddress, DefuseTestnetTokenContractAddress } from "../types/intents"
 import  * as near from "near-api-js"
 import { AccessKeyView, CodeResult } from "near-api-js/lib/providers/provider"
 import { fullAccessKey } from "near-api-js/lib/transaction"
 import { Near, transactions } from "near-api-js/lib/common-index"
 import { PublicKey } from "near-api-js/lib/utils"
+import { getDefuseAssetId, isUnifiedToken, SingleChainToken, UnifiedToken } from "../types/tokens"
 const FT_DEPOSIT_GAS = `30${"0".repeat(12)}` // 30 TGAS
 const FT_TRANSFER_GAS = `50${"0".repeat(12)}` // 30 TGAS
 const BASE_URL = "https://nearrpc.aurora.dev"
@@ -106,16 +106,20 @@ export function createBatchDepositNearNativeTransaction(
 }
 
 export type TokenBalances = {
-    [key in DefuseMainnetTokenContractAddress | DefuseTestnetTokenContractAddress]?: bigint
+    [key in string]?: bigint
 }
 
 export async function getDepositedBalances(
     accountId: string,
-    tokenIds: DefuseMainnetTokenContractAddress[] | DefuseTestnetTokenContractAddress[],
+    tokens: (UnifiedToken | SingleChainToken)[],
     nearClient: near.providers.Provider
   ): Promise<TokenBalances> {
     // RPC call
     // Warning: `CodeResult` is not correct type for `call_function`, but it's closest we have.
+
+    // Check if the token is of certain type
+    const defuseAssetIds = tokens.map(token => getDefuseAssetId(token));
+
     const output = await nearClient.query<CodeResult>({
       request_type: "call_function",
       account_id: settings.defuseContractId || "intents.near",
@@ -123,7 +127,7 @@ export async function getDepositedBalances(
       args_base64: btoa(
         JSON.stringify({
           account_id: accountId,
-          token_ids: tokenIds,
+          token_ids: defuseAssetIds,
         })
       ),
       finality: "optimistic",
@@ -139,14 +143,14 @@ export async function getDepositedBalances(
       Array.isArray(parsed) && parsed.every((a) => typeof a === "string"),
       "Invalid response"
     )
-    assert(parsed.length === tokenIds.length, "Invalid response")
+    assert(parsed.length === defuseAssetIds.length, "Invalid response")
 
 
     // Transforming response
     const result: TokenBalances = {}
-    for (let i = 0; i < tokenIds.length; i++) {
+    for (let i = 0; i < defuseAssetIds.length; i++) {
       // biome-ignore lint/style/noNonNullAssertion: always within bounds
-      result[tokenIds[i]!] = BigInt(parsed[i])
+      result[defuseAssetIds[i]!] = BigInt(parsed[i])
     }
 
     return result
