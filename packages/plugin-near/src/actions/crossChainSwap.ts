@@ -1,5 +1,5 @@
 // import { ChainType, SendTransactionNearParams, Action as DefuseAction, SendTransactionEVMParams } from "@defuse-protocol/defuse-sdk";
-import { ActionExample,composeContext,generateObject,IAgentRuntime,Memory,ModelClass,State,type Action,HandlerCallback } from "@elizaos/core";
+import { ActionExample,composeContext,generateObjectDeprecated,IAgentRuntime,Memory,ModelClass,State,type Action,HandlerCallback } from "@elizaos/core";
 import { walletProvider } from "../providers/wallet";
 import { connect, InMemorySigner, Near } from "near-api-js";
 import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
@@ -16,9 +16,10 @@ import { CrossChainSwapParams, createTokenDiffIntent, IntentMessage, IntentStatu
 import { KeyPair } from "near-api-js";
 import { Payload, SignMessageParams } from "../types/intents";
 import { providers } from "near-api-js";
-import { getAllSupportedTokens, getDefuseAssetId, getTokenByDefuseId, getTokenBySymbol, isTokenSupported, SingleChainToken, UnifiedToken } from "../types/tokens";
-const DEFUSE_RPC_URL = "https://solver-relay-v2.chaindefuser.com/rpc";
+import { getAllSupportedTokens, getDefuseAssetId, getTokenByDefuseId, getTokenBySymbol, isTokenSupported, SingleChainToken, UnifiedToken, convertAmountToDecimals } from "../types/tokens";
+import { z } from "zod";
 
+const DEFUSE_RPC_URL = "https://solver-relay-v2.chaindefuser.com/rpc";
 
 const POLLING_INTERVAL_MS = 2000; // 2 seconds
 const MAX_POLLING_TIME_MS = 300000; // 5 minutes
@@ -52,26 +53,6 @@ async function makeRPCRequest<T>(method: string, params: any[]): Promise<T> {
     }
     return data.result;
 }
-
-// const getContractAddress = (assetIdentifier: DefuseAssetIdentifier, isTestnet: boolean = false): DefuseAssets => {
-//     // Convert DefuseAssetIdentifier to the corresponding contract address enum key
-//     const contractKey = assetIdentifier.toString() as keyof typeof DefuseMainnetTokenContractAddress;
-
-//     if (isTestnet) {
-//         // For testnet, only NEAR is supported
-//         if (assetIdentifier === DefuseAssetIdentifier.NEAR) {
-//             return DefuseTestnetTokenContractAddress.NEAR;
-//         }
-//         throw new Error(`Token ${assetIdentifier} is not supported on testnet`);
-//     }
-
-//     const address = DefuseMainnetTokenContractAddress[contractKey];
-//     if (!address) {
-//         throw new Error(`Token ${assetIdentifier} not found in mainnet contract addresses`);
-//     }
-//     return address;
-// };
-
 export const getQuote = async (params: QuoteRequest): Promise<QuoteResponse> => {
     return makeRPCRequest<QuoteResponse>("quote", [params]);
 };
@@ -115,6 +96,7 @@ export const getCurrentBlock = async (runtime: IAgentRuntime): Promise<{ blockHe
 
 // First check the balance of the user, then deposit the tokens if there are any
 export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory, state: State, tokenIds: string[], amount: bigint, nearConnection: Near) => {
+    console.log("tokenIds[]", tokenIds);
     const settings = getRuntimeSettings(runtime);
     const contractId = tokenIds[0].replace('nep141:', '');
 
@@ -123,8 +105,9 @@ export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory,
         accountId: settings.accountId
     });
     const publicKey = await nearConnection.connection.signer.getPublicKey(settings.accountId, settings.networkId);
+    console.log("nep141balance", nep141balance);
     const transaction = createBatchDepositNearNep141Transaction(contractId, amount, !(nep141balance > BigInt(0)), BigInt(0));
-
+    console.log("transaction", transaction);
     for (const tx of transaction) {
         const result = await sendNearTransaction(nearConnection, settings.accountId, publicKey, contractId, tx);
         console.log("Transaction result:", result);
@@ -192,6 +175,40 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
         throw new Error("NEAR_ADDRESS not configured");
     }
 
+    console.log("Looking up tokens:", {
+        tokenIn: params.defuse_asset_identifier_in,
+        tokenOut: params.defuse_asset_identifier_out
+    });
+
+    // Get token details
+    const defuseTokenIn = getTokenBySymbol(params.defuse_asset_identifier_in);
+    const defuseTokenOut = getTokenBySymbol(params.defuse_asset_identifier_out);
+
+    console.log("Found tokens:", {
+        defuseTokenIn,
+        defuseTokenOut
+    });
+
+    if (!defuseTokenIn || !defuseTokenOut) {
+        const supportedTokens = getAllSupportedTokens();
+        console.log("Supported tokens:", supportedTokens);
+        throw new Error(`Token ${params.defuse_asset_identifier_in} or ${params.defuse_asset_identifier_out} not found. Supported tokens: ${supportedTokens.join(', ')}`);
+    }
+
+    // Convert amount to proper decimals
+    const amountInBigInt = convertAmountToDecimals(params.exact_amount_in, defuseTokenIn);
+    console.log("Converted amount:", amountInBigInt.toString());
+
+    // Get defuse asset IDs
+    const defuseAssetIdIn = getDefuseAssetId(defuseTokenIn);
+    const defuseAssetIdOut = getDefuseAssetId(defuseTokenOut);
+
+    console.log("Defuse asset IDs:", {
+        defuseAssetIdIn,
+        defuseAssetIdOut
+    });
+
+    // Setup NEAR connection
     const keyStore = new keyStores.InMemoryKeyStore();
     const keyPair = utils.KeyPair.fromString(settings.secretKey as KeyPairString);
     await keyStore.setKey(settings.networkId, settings.accountId, keyPair);
@@ -201,26 +218,22 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
         keyStore,
         nodeUrl: settings.nodeUrl,
     });
-    const defuseTokenIn = getTokenBySymbol(params.defuse_asset_identifier_in);
-    const defuseTokenOut = getTokenBySymbol(params.defuse_asset_identifier_out);
 
-    if (!defuseTokenIn || !defuseTokenOut) {
-        throw new Error(`Token ${params.defuse_asset_identifier_in} or ${params.defuse_asset_identifier_out} not found`);
-    }
+    // Check balances
     const tokenBalances = await getNearBalances(runtime, messageFromMemory, state, [defuseTokenIn, defuseTokenOut], nearConnection.connection.provider);
-    const defuseAssetIdIn = getDefuseAssetId(defuseTokenIn);
-    const defuseAssetIdOut = getDefuseAssetId(defuseTokenOut);
+    console.log("Token balances:", tokenBalances);
 
     if (tokenBalances[defuseAssetIdIn] != undefined &&
-        tokenBalances[defuseAssetIdIn] < BigInt(params.exact_amount_in)) {
-        await depositIntoDefuse(runtime, messageFromMemory, state, [defuseAssetIdIn], BigInt(params.exact_amount_in), nearConnection);
+        tokenBalances[defuseAssetIdIn] < amountInBigInt) {
+        console.log("Depositing into Defuse");
+        await depositIntoDefuse(runtime, messageFromMemory, state, [defuseAssetIdIn], amountInBigInt, nearConnection);
     }
 
-
+    // Get quote
     const quote = await getQuote({
         defuse_asset_identifier_in: defuseAssetIdIn,
         defuse_asset_identifier_out: defuseAssetIdOut,
-        exact_amount_in: params.exact_amount_in,
+        exact_amount_in: amountInBigInt.toString(),
     });
     console.log("Quote:", quote);
 
@@ -270,8 +283,6 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
 
     return intent;
 }
-
-
 const crossChainSwapTemplate = `Respond with a JSON markdown block containing only the extracted values. Use null for any values that cannot be determined.
 
 Example response:
@@ -307,7 +318,7 @@ Respond with a JSON markdown block containing only the extracted values. Use nul
 
 
 export const executeCrossChainSwap: Action = {
-    name: "near_cross_chain_swap",
+    name: "NEAR_CROSS_CHAIN_SWAP",
     description: "Swap tokens between NEAR and other supported chains",
     similes: [
         "swap NEAR tokens for tokens on other chains",
@@ -360,14 +371,14 @@ export const executeCrossChainSwap: Action = {
             template: crossChainSwapTemplate,
         });
 
-        const response = await generateObject({
+        const response = await generateObjectDeprecated({
             runtime,
             context: swapContext,
-            modelClass: ModelClass.LARGE,
+            modelClass: ModelClass.LARGE
         });
 
-        console.log("Response:", response.toJsonResponse());
-        const responseObject = response.object as CrossChainSwapParams;
+        console.log("Response:", response);
+        const responseObject = response as CrossChainSwapParams;
         if (!responseObject.defuse_asset_identifier_in || !responseObject.defuse_asset_identifier_out
              || !responseObject.exact_amount_in) {
             console.log("Missing required parameters, skipping swap");
@@ -450,7 +461,7 @@ Respond with a JSON markdown block containing only the extracted values. Use nul
 
 
 export const executeCrossChainSwapAndWithdraw: Action = {
-    name: "near_cross_chain_swap_and_withdraw",
+    name: "NEAR_CROSS_CHAIN_SWAP_AND_WITHDRAW",
     description: "Swap tokens between NEAR and other supported chains, then withdraw to a different address on a specific network",
     similes: [
         "swap NEAR tokens for tokens on other chains, then withdraw to an address",
@@ -498,19 +509,19 @@ export const executeCrossChainSwapAndWithdraw: Action = {
             state = await runtime.composeState(message);
         }
 
-        const swapContext = composeContext({
+        const swapContextAndWithdraw = composeContext({
             state,
             template: crossChainSwapAndWithdrawTemplate,
         });
 
-        const response = await generateObject({
+        const response = await generateObjectDeprecated({
             runtime,
-            context: swapContext,
-            modelClass: ModelClass.LARGE,
+            context: swapContextAndWithdraw,
+            modelClass: ModelClass.LARGE
         });
 
-        console.log("Response:", response);
-        const responseObject = response.object as CrossChainSwapAndWithdrawParams;
+        console.log("Response CrossChainSwapAndWithdrawParams:", response);
+        const responseObject = response as CrossChainSwapAndWithdrawParams;
 
         if (!responseObject.defuse_asset_identifier_in || !responseObject.defuse_asset_identifier_out
              || !responseObject.exact_amount_in || !responseObject.destination_address) {
@@ -602,7 +613,7 @@ function getRuntimeSettings(runtime: IAgentRuntime): RuntimeSettings {
 
     return {
         networkId: runtime.getSetting("NEAR_NETWORK") || "testnet",
-        nodeUrl: runtime.getSetting("RPC_URL") || "https://rpc.testnet.near.org",
+        nodeUrl: runtime.getSetting("NEAR_RPC_URL") || "https://rpc.testnet.near.org",
         accountId: runtime.getSetting("NEAR_ADDRESS") || "",
         secretKey: runtime.getSetting("NEAR_WALLET_SECRET_KEY") || "",
         defuseContractId: runtime.getSetting("DEFUSE_CONTRACT_ID") || "intents.near"

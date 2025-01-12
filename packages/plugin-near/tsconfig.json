@@ -11,8 +11,17 @@
         "resolveJsonModule": true,
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
-        "typeRoots": ["./node_modules/@types", "./src/types"],
-        "declaration": true
+        "typeRoots": [
+            "./node_modules/@types",
+            "./src/types"
+        ],
+        "declaration": true,
+        "lib": [
+            "ES2020",
+            "DOM"
+        ]
     },
-    "include": ["src"]
+    "include": [
+        "src"
+    ]
 }

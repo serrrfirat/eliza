@@ -29,7 +29,8 @@
         "viem": "2.10.0",
         "fetch": "1.1.0",
         "borsh": "0.7.0",
-        "js-sha256": "^0.11.0"
+        "js-sha256": "^0.11.0",
+        "zod": "^3.22.4"
     },
     "scripts": {
         "build": "tsup --format esm,cjs --dts",
