@@ -9,6 +9,7 @@ import {
     type Action,
     composeContext,
     generateObject,
+    generateObjectDeprecated,
 } from "@elizaos/core";
 import { connect, keyStores, utils } from "near-api-js";
 import {
@@ -216,11 +217,12 @@ export const executeSwap: Action = {
             template: swapTemplate,
         });
 
-        const response = await generateObject({
+        const response = await generateObjectDeprecated({
             runtime,
             context: swapContext,
             modelClass: ModelClass.LARGE,
         });
+
 
         elizaLogger.log("Response:", response);
 
