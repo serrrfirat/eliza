@@ -9,7 +9,7 @@ export const nearPlugin: Plugin = {
     name: "NEAR",
     description: "Near Protocol Plugin for Eliza",
     providers: [walletProvider],
-    actions: [executeSwap, executeTransfer, executeCrossChainSwap, executeCrossChainSwapAndWithdraw],
+    actions: [executeSwap, executeTransfer, executeCrossChainSwapAndWithdraw],
     evaluators: [],
 };
 

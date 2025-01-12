@@ -119,7 +119,7 @@ export async function getDepositedBalances(
 
     // Check if the token is of certain type
     const defuseAssetIds = tokens.map(token => getDefuseAssetId(token));
-    console.log("accountId", accountId);
+    console.log("defuseAssetIds", defuseAssetIds);
     const output = await nearClient.query<CodeResult>({
       request_type: "call_function",
       account_id: settings.defuseContractId || "intents.near",

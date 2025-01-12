@@ -664,11 +664,29 @@ async function withdrawFromDefuse(runtime: IAgentRuntime, message: Memory, state
 
         // Get token details and defuse asset ID
         const token = getTokenBySymbol(params.defuse_asset_identifier_out);
+        console.log("Token:", token);
         if (!token) {
             throw new Error(`Token ${params.defuse_asset_identifier_out} not found`);
         }
 
+        const nearConnection = await connect({
+            networkId: settings.networkId,
+            keyStore,
+            nodeUrl: settings.nodeUrl,
+        });
+
+        // Check balances
+        const tokenBalances = await getNearBalances(runtime, message, state, [token], nearConnection.connection.provider);
+        console.log("Token balances:", tokenBalances);
+        
         const defuseAssetIdentifierOut = getDefuseAssetId(token, params.network);
+        const outTokenNear = getDefuseAssetId(token, 'near');
+        const defuseAssetOutAddrs = defuseAssetIdentifierOut.replace('nep141:', '');
+
+        const tokenBalance = tokenBalances[outTokenNear];
+        if (tokenBalance === undefined) {
+            throw new Error(`No balance found for token ${defuseAssetIdentifierOut}`);
+        }
 
         // Create intent message
         const intentMessage: IntentMessage = {
@@ -676,9 +694,9 @@ async function withdrawFromDefuse(runtime: IAgentRuntime, message: Memory, state
             deadline: new Date(Date.now() + 300000).toISOString(), // 5 minutes from now
             intents: [{
                 intent: "ft_withdraw",
-                token: defuseAssetIdentifierOut,
-                receiver_id: defuseAssetIdentifierOut,
-                amount: params.exact_amount_in,
+                token: defuseAssetOutAddrs,
+                receiver_id: defuseAssetOutAddrs,
+                amount: tokenBalance.toString(),
                 msg: params.network !== 'near' ? `WITHDRAW_TO:${params.destination_address}` : ''
             }]
         };
