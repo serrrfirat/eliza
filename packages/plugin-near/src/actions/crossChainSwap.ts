@@ -226,9 +226,6 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
         tokenBalanceIn[defuseAssetIdIn] < amountInBigInt) {
         await depositIntoDefuse(runtime, messageFromMemory, state, [defuseAssetIdIn], amountInBigInt, nearConnection);
     }
-
-    const tokenBalanceInAfterDeposit = await getBalances(runtime, messageFromMemory, state, [defuseTokenIn], nearConnection.connection.provider, network);
-
     // Get quote
     const quote = await getQuote({
         defuse_asset_identifier_in: defuseAssetIdIn,
