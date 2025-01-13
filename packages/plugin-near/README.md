@@ -1,15 +1,16 @@
 # @elizaos/plugin-near
 
-NEAR Protocol integration plugin for Eliza OS that enables token management, transfers, and swaps using Ref Finance.
+NEAR Protocol integration plugin for Eliza OS that enables token management, transfers, and swaps using Ref Finance and cross-chain operations using Near Intents.
 
 ## Overview
 
-This plugin aims to be the basis of all interactions with the NEAR ecosystem, providing seamless integration with NEAR Protocol and Ref Finance DEX.
+This plugin aims to be the basis of all interactions with the NEAR ecosystem, providing seamless integration with NEAR Protocol, Ref Finance DEX, and cross-chain operations through Near Intents.
 
 ## Features
 
 - NEAR token transfers
 - Token swaps via Ref Finance
+- Cross-chain token swaps via Near Intents
 - Multiple network support (mainnet, testnet)
 - Secure transaction signing
 - Automatic storage deposit handling
@@ -18,6 +19,8 @@ This plugin aims to be the basis of all interactions with the NEAR ecosystem, pr
 - Smart routing for optimal swaps
 - Built-in denomination handling
 - Comprehensive error handling
+- Support for unified tokens across chains
+- Cross-chain deposit and withdrawal functionality
 
 ## Installation
 
@@ -55,7 +58,7 @@ const result = await eliza.execute({
 });
 ```
 
-### Token Swap
+### Token Swap (On NEAR)
 
 ```typescript
 const result = await eliza.execute({
@@ -64,6 +67,37 @@ const result = await eliza.execute({
         inputTokenId: "wrap.near",
         outputTokenId: "token.v2.ref-finance.near",
         amount: "10",
+    },
+});
+```
+
+### Cross-Chain Token Swap
+
+```typescript
+// Swap NEAR for ETH on Ethereum
+const result = await eliza.execute({
+    action: "NEAR_CROSS_CHAIN_SWAP",
+    content: {
+        defuse_asset_identifier_in: "NEAR",
+        defuse_asset_identifier_out: "ETH",
+        exact_amount_in: "1.0",
+        network: "ethereum"
+    },
+});
+```
+
+### Cross-Chain Swap and Withdraw
+
+```typescript
+// Swap NEAR for USDC and withdraw to Base
+const result = await eliza.execute({
+    action: "WITHDRAW_NEAR_CROSS_CHAIN_SWAP",
+    content: {
+        defuse_asset_identifier_in: "NEAR",
+        defuse_asset_identifier_out: "USDC",
+        exact_amount_in: "10.0",
+        destination_address: "0x...", // Base address
+        network: "base"
     },
 });
 ```
@@ -103,6 +137,55 @@ Executes a token swap using Ref Finance.
 }
 ```
 
+#### `NEAR_CROSS_CHAIN_SWAP`
+
+Executes a cross-chain token swap using Defuse Protocol.
+
+```typescript
+{
+  action: 'NEAR_CROSS_CHAIN_SWAP',
+  content: {
+    defuse_asset_identifier_in: string,  // Input token symbol (e.g., "NEAR")
+    defuse_asset_identifier_out: string, // Output token symbol (e.g., "ETH")
+    exact_amount_in: string,            // Amount to swap
+    network?: string                    // Optional: target network (e.g., "ethereum")
+  }
+}
+```
+
+#### `WITHDRAW_NEAR_CROSS_CHAIN_SWAP`
+
+Executes a cross-chain token swap and withdraws to a specified address.
+
+```typescript
+{
+  action: 'WITHDRAW_NEAR_CROSS_CHAIN_SWAP',
+  content: {
+    defuse_asset_identifier_in: string,  // Input token symbol
+    defuse_asset_identifier_out: string, // Output token symbol
+    exact_amount_in: string,            // Amount to swap
+    destination_address: string,        // Address to withdraw to
+    network: string                     // Target network
+  }
+}
+```
+
+### Supported Tokens
+
+#### Unified Tokens (Cross-Chain)
+- USDC (Ethereum, NEAR, Turbochain, Aurora, Base, Arbitrum, Solana)
+- ETH (Ethereum, NEAR, Turbochain, Aurora, Base, Arbitrum)
+- AURORA (NEAR, Turbochain, Aurora, Ethereum)
+- TURBO (Ethereum, Turbochain, NEAR)
+
+#### Single Chain Tokens
+- NEAR (NEAR native)
+- BTC (Bitcoin)
+- SOL (Solana)
+- DOGE (Dogecoin)
+- XRP (XRP Ledger)
+- Various ERC20 tokens (PEPE, SHIB, LINK, UNI, etc.)
+
 ### Providers
 
 #### Wallet Provider
@@ -116,6 +199,7 @@ const walletInfo = await eliza.getProvider("wallet");
 // - Token balances
 // - USD values
 // - Market prices
+// - Cross-chain balances
 ```
 
 ## Troubleshooting
@@ -123,53 +207,61 @@ const walletInfo = await eliza.getProvider("wallet");
 ### Common Issues
 
 1. **Transaction Failures**
-
     - Check account balance
     - Verify storage deposits
     - Ensure sufficient gas
     - Confirm slippage tolerance
+    - Verify cross-chain bridge status
 
 2. **Connection Problems**
-
     - Verify RPC endpoint
     - Check network selection
     - Ensure valid credentials
     - Monitor API rate limits
+    - Check Near Intents status
 
 3. **Swap Issues**
     - Verify token pairs exist
     - Check liquidity pools
     - Confirm price impact
     - Monitor slippage settings
+    - Verify cross-chain token support
+
+4. **Cross-Chain Issues**
+    - Check destination chain status
+    - Verify token bridge support
+    - Ensure correct address format
+    - Monitor intent settlement status
+    - Check storage balance requirements
 
 ## Security Best Practices
 
 1. **Key Management**
-
     - Store private keys securely
     - Use environment variables
     - Implement key rotation
     - Monitor account activity
 
 2. **Transaction Safety**
-
     - Validate all inputs
     - Implement amount limits
     - Double-check recipients
     - Monitor transaction status
+    - Verify cross-chain addresses
 
 3. **Network Security**
-
     - Use secure RPC endpoints
     - Implement retry mechanisms
     - Monitor for suspicious activity
     - Keep dependencies updated
+    - Verify bridge contracts
 
 4. **Error Handling**
     - Log all transaction attempts
     - Handle timeouts gracefully
     - Validate all user inputs
     - Provide clear error messages
+    - Track cross-chain status
 
 ## Testing
 
@@ -191,6 +283,9 @@ pnpm test:watch
 - @ref-finance/ref-sdk: ^1.4.6
 - bignumber.js: ^9.1.2
 - node-cache: ^5.1.2
+- @dao-xyz/borsh: ^5.2.1
+- zod: ^3.22.4
+- viem: For EVM chain interactions
 
 ## Contributing
 
@@ -202,12 +297,14 @@ This plugin integrates with:
 
 - [NEAR Protocol](https://near.org/)
 - [Ref Finance](https://ref.finance/)
+- [Near Intents](https://near.org/intents)
 - Official NEAR JavaScript API and SDKs
 
 Special thanks to:
 
 - The NEAR Protocol team for developing the NEAR blockchain
 - The Ref Finance team for developing the Ref Finance DEX
+- The Defuse Protocol team for enabling cross-chain functionality
 - The Eliza community for their contributions and feedback.
 
 For more information about NEAR blockchain capabilities:
@@ -216,6 +313,7 @@ For more information about NEAR blockchain capabilities:
 - [NEAR Developer Portal](https://near.org/developers)
 - [NEAR Network Dashboard](https://nearscan.io/)
 - [NEAR GitHub Repository](https://github.com/nearprotocol/near-api-js)
+- [Defuse Protocol Documentation](https://docs.near-intents.org/defuse-protocol/)
 
 ## License
 
