@@ -460,7 +460,7 @@ Respond with a JSON markdown block containing only the extracted values. Use nul
 
 
 export const executeCrossChainSwapAndWithdraw: Action = {
-    name: "NEAR_CROSS_CHAIN_SWAP_AND_WITHDRAW",
+    name: "WITHDRAW_NEAR_CROSS_CHAIN_SWAP",
     description: "Swap tokens between NEAR and other supported chains, then withdraw to a different address on a specific network",
     similes: [
         "swap NEAR tokens for tokens on other chains, then withdraw to an address",
