@@ -112,13 +112,14 @@ export type TokenBalances = {
 export async function getDepositedBalances(
     accountId: string,
     tokens: (UnifiedToken | SingleChainToken)[],
-    nearClient: near.providers.Provider
+    nearClient: near.providers.Provider,
+    network?: string
   ): Promise<TokenBalances> {
     // RPC call
     // Warning: `CodeResult` is not correct type for `call_function`, but it's closest we have.
-
+    const networkId = network || "near";
     // Check if the token is of certain type
-    const defuseAssetIds = tokens.map(token => getDefuseAssetId(token));
+    const defuseAssetIds = tokens.map(token => getDefuseAssetId(token, networkId));
     console.log("defuseAssetIds", defuseAssetIds);
     const output = await nearClient.query<CodeResult>({
       request_type: "call_function",

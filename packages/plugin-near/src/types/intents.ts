@@ -70,7 +70,7 @@ export interface FTWithdrawIntent {
     token: string;
     receiver_id: string;
     amount: string;
-    msg: string;
+    memo: string;
 }
 
 export type Intent = TokenDiffIntent | MTBatchTransferIntent | FTWithdrawIntent;
@@ -132,6 +132,7 @@ export interface CrossChainSwapParams {
     exact_amount_in: string;
     defuse_asset_identifier_in: string;
     defuse_asset_identifier_out: string;
+    network?: string;
 }
 
 export interface CrossChainSwapAndWithdrawParams {

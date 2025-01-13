@@ -115,18 +115,20 @@ export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory,
 }
 
 
-async function getNearBalances(
+async function getBalances(
     runtime: IAgentRuntime,
     message: Memory,
     state: State,
     tokens: (UnifiedToken | SingleChainToken)[],
-    nearClient: providers.Provider
+    nearClient: providers.Provider,
+    network?: string
 ): Promise<TokenBalances> {
 
     const tokenBalances = await getDepositedBalances(
         runtime.getSetting("NEAR_ADDRESS") || "",
         tokens,
-        nearClient
+        nearClient,
+        network
     );
     return tokenBalances;
 }
@@ -179,6 +181,7 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
         tokenIn: params.defuse_asset_identifier_in,
         tokenOut: params.defuse_asset_identifier_out
     });
+    const network = params.network || "near";
 
     // Get token details
     const defuseTokenIn = getTokenBySymbol(params.defuse_asset_identifier_in);
@@ -201,7 +204,7 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
 
     // Get defuse asset IDs
     const defuseAssetIdIn = getDefuseAssetId(defuseTokenIn);
-    const defuseAssetIdOut = getDefuseAssetId(defuseTokenOut);
+    const defuseAssetIdOut = getDefuseAssetId(defuseTokenOut, network);
 
     console.log("Defuse asset IDs:", {
         defuseAssetIdIn,
@@ -220,14 +223,18 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
     });
 
     // Check balances
-    const tokenBalances = await getNearBalances(runtime, messageFromMemory, state, [defuseTokenIn, defuseTokenOut], nearConnection.connection.provider);
-    console.log("Token balances:", tokenBalances);
+    const tokenBalanceIn = await getBalances(runtime, messageFromMemory, state, [defuseTokenIn], nearConnection.connection.provider, network);
+    const tokenBalanceOut = await getBalances(runtime, messageFromMemory, state, [defuseTokenOut], nearConnection.connection.provider, network);
+    console.log("Token balances:", tokenBalanceIn, tokenBalanceOut);
 
-    if (tokenBalances[defuseAssetIdIn] != undefined &&
-        tokenBalances[defuseAssetIdIn] < amountInBigInt) {
+    if (tokenBalanceIn[defuseAssetIdIn] != undefined &&
+        tokenBalanceIn[defuseAssetIdIn] < amountInBigInt) {
         console.log("Depositing into Defuse");
         await depositIntoDefuse(runtime, messageFromMemory, state, [defuseAssetIdIn], amountInBigInt, nearConnection);
     }
+
+    const tokenBalanceInAfterDeposit = await getBalances(runtime, messageFromMemory, state, [defuseTokenIn], nearConnection.connection.provider, network);
+    console.log("Token balance after deposit:", tokenBalanceInAfterDeposit);
 
     // Get quote
     const quote = await getQuote({
@@ -659,6 +666,8 @@ async function withdrawFromDefuse(runtime: IAgentRuntime, message: Memory, state
         const keyPair = utils.KeyPair.fromString(settings.secretKey as KeyPairString);
         await keyStore.setKey(settings.networkId, settings.accountId, keyPair);
 
+        const network = params.network || "near";
+
         // Generate nonce using crypto
         const nonce = new Uint8Array(crypto.randomBytes(32));
 
@@ -676,14 +685,13 @@ async function withdrawFromDefuse(runtime: IAgentRuntime, message: Memory, state
         });
 
         // Check balances
-        const tokenBalances = await getNearBalances(runtime, message, state, [token], nearConnection.connection.provider);
+        const tokenBalances = await getBalances(runtime, message, state, [token], nearConnection.connection.provider, network);
         console.log("Token balances:", tokenBalances);
-        
-        const defuseAssetIdentifierOut = getDefuseAssetId(token, params.network);
-        const outTokenNear = getDefuseAssetId(token, 'near');
+
+        const defuseAssetIdentifierOut = getDefuseAssetId(token, network);
         const defuseAssetOutAddrs = defuseAssetIdentifierOut.replace('nep141:', '');
 
-        const tokenBalance = tokenBalances[outTokenNear];
+        const tokenBalance = tokenBalances[defuseAssetIdentifierOut];
         if (tokenBalance === undefined) {
             throw new Error(`No balance found for token ${defuseAssetIdentifierOut}`);
         }
@@ -697,7 +705,7 @@ async function withdrawFromDefuse(runtime: IAgentRuntime, message: Memory, state
                 token: defuseAssetOutAddrs,
                 receiver_id: defuseAssetOutAddrs,
                 amount: tokenBalance.toString(),
-                msg: params.network !== 'near' ? `WITHDRAW_TO:${params.destination_address}` : ''
+                memo: params.network !== 'near' ? `WITHDRAW_TO:${params.destination_address}` : ''
             }]
         };
 
