@@ -1,3 +1,5 @@
+import tokens from '../config/tokens.json';
+
 export interface TokenAddress {
     address: string;
     defuse_asset_id: string;
@@ -39,9 +41,7 @@ export interface TokenConfig {
 }
 
 // Import token configuration
-const tokenConfig = {
-    tokens: require('../config/tokens.json').tokens
-} as TokenConfig;
+const tokenConfig = tokens as TokenConfig;
 
 /**
  * Gets the token details for a given symbol

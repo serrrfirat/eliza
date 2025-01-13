@@ -5,10 +5,9 @@ import { settings } from "@elizaos/core"
 import { FetchError, ResponseError, type GetNearNep141StorageBalanceBoundsRequest, type GetNearNep141StorageBalanceBoundsResponse, type GetNearNep141StorageBalanceOfRequest, type GetNearNep141StorageBalanceOfResponse, type JSONRPCRequest, type Transaction } from "../types/deposit"
 import  * as near from "near-api-js"
 import { AccessKeyView, CodeResult } from "near-api-js/lib/providers/provider"
-import { fullAccessKey } from "near-api-js/lib/transaction"
 import { Near, transactions } from "near-api-js/lib/common-index"
 import { PublicKey } from "near-api-js/lib/utils"
-import { getDefuseAssetId, isUnifiedToken, SingleChainToken, UnifiedToken } from "../types/tokens"
+import { getDefuseAssetId, SingleChainToken, UnifiedToken } from "../types/tokens"
 const FT_DEPOSIT_GAS = `30${"0".repeat(12)}` // 30 TGAS
 const FT_TRANSFER_GAS = `50${"0".repeat(12)}` // 30 TGAS
 const BASE_URL = "https://nearrpc.aurora.dev"
@@ -207,7 +206,7 @@ async function request(url: string, body: unknown): Promise<Response> {
         body: JSON.stringify(body),
       })
     } catch (err) {
-      throw new FetchError("The request failed")
+      throw new FetchError(`The request failed ${err}`)
     }
 
     if (response.ok) {

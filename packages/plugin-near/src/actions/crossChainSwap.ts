@@ -1,12 +1,10 @@
-// import { ChainType, SendTransactionNearParams, Action as DefuseAction, SendTransactionEVMParams } from "@defuse-protocol/defuse-sdk";
 import { ActionExample,composeContext,generateObjectDeprecated,IAgentRuntime,Memory,ModelClass,State,type Action,HandlerCallback } from "@elizaos/core";
-import { walletProvider } from "../providers/wallet";
-import { connect, InMemorySigner, Near } from "near-api-js";
-import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
+import { connect, Near } from "near-api-js";
+import { KeyPairString } from "near-api-js/lib/utils/key_pair";
 import { utils } from "near-api-js";
 import { keyStores } from "near-api-js";
 import { createBatchDepositNearNep141Transaction, getDepositedBalances,
-    getNearNep141StorageBalance, getNearNep141StorageBalanceOf, sendNearTransaction, TokenBalances } from "../utils/deposit";
+    getNearNep141StorageBalance, sendNearTransaction, TokenBalances } from "../utils/deposit";
 import * as Borsh from "@dao-xyz/borsh";
 import * as js_sha256 from "js-sha256";
 import crypto from "crypto";
@@ -16,8 +14,7 @@ import { CrossChainSwapParams, createTokenDiffIntent, IntentMessage, IntentStatu
 import { KeyPair } from "near-api-js";
 import { Payload, SignMessageParams } from "../types/intents";
 import { providers } from "near-api-js";
-import { getAllSupportedTokens, getDefuseAssetId, getTokenByDefuseId, getTokenBySymbol, isTokenSupported, SingleChainToken, UnifiedToken, convertAmountToDecimals } from "../types/tokens";
-import { z } from "zod";
+import { getAllSupportedTokens, getDefuseAssetId, getTokenBySymbol, isTokenSupported, SingleChainToken, UnifiedToken, convertAmountToDecimals } from "../types/tokens";
 
 const DEFUSE_RPC_URL = "https://solver-relay-v2.chaindefuser.com/rpc";
 

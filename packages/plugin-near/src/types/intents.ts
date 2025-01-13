@@ -1,4 +1,3 @@
-import { KeyPairString, Signature } from "near-api-js/lib/utils/key_pair";
 import { field, option, fixedArray } from '@dao-xyz/borsh';
 
 

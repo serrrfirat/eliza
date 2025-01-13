@@ -8,7 +8,6 @@ import {
     State,
     type Action,
     composeContext,
-    generateObject,
     generateObjectDeprecated,
 } from "@elizaos/core";
 import { connect, keyStores, utils } from "near-api-js";

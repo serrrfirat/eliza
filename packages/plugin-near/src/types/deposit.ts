@@ -6,11 +6,6 @@ import type { Action } from "@near-js/transactions"
 /// https://github.com/defuse-protocol/defuse-sdk/blob/main/src/types/deposit.ts
 export type ChainType = "near" | "evm"
 
-export const ChainType = {
-  Near: "near",
-  EVM: "evm",
-} as const
-
 export type UserInfo = {
   userAddress?: string
   chainType?: ChainType
