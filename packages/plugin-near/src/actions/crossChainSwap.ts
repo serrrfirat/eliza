@@ -96,7 +96,6 @@ export const getCurrentBlock = async (runtime: IAgentRuntime): Promise<{ blockHe
 
 // First check the balance of the user, then deposit the tokens if there are any
 export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory, state: State, tokenIds: string[], amount: bigint, nearConnection: Near) => {
-    console.log("tokenIds[]", tokenIds);
     const settings = getRuntimeSettings(runtime);
     const contractId = tokenIds[0].replace('nep141:', '');
 
@@ -105,9 +104,7 @@ export const depositIntoDefuse = async (runtime: IAgentRuntime, message: Memory,
         accountId: settings.accountId
     });
     const publicKey = await nearConnection.connection.signer.getPublicKey(settings.accountId, settings.networkId);
-    console.log("nep141balance", nep141balance);
     const transaction = createBatchDepositNearNep141Transaction(contractId, amount, !(nep141balance > BigInt(0)), BigInt(0));
-    console.log("transaction", transaction);
     for (const tx of transaction) {
         const result = await sendNearTransaction(nearConnection, settings.accountId, publicKey, contractId, tx);
         console.log("Transaction result:", result);
@@ -194,13 +191,11 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
 
     if (!defuseTokenIn || !defuseTokenOut) {
         const supportedTokens = getAllSupportedTokens();
-        console.log("Supported tokens:", supportedTokens);
         throw new Error(`Token ${params.defuse_asset_identifier_in} or ${params.defuse_asset_identifier_out} not found. Supported tokens: ${supportedTokens.join(', ')}`);
     }
 
     // Convert amount to proper decimals
     const amountInBigInt = convertAmountToDecimals(params.exact_amount_in, defuseTokenIn);
-    console.log("Converted amount:", amountInBigInt.toString());
 
     // Get defuse asset IDs
     const defuseAssetIdIn = getDefuseAssetId(defuseTokenIn);
@@ -229,12 +224,10 @@ async function crossChainSwap(runtime: IAgentRuntime, messageFromMemory: Memory,
 
     if (tokenBalanceIn[defuseAssetIdIn] != undefined &&
         tokenBalanceIn[defuseAssetIdIn] < amountInBigInt) {
-        console.log("Depositing into Defuse");
         await depositIntoDefuse(runtime, messageFromMemory, state, [defuseAssetIdIn], amountInBigInt, nearConnection);
     }
 
     const tokenBalanceInAfterDeposit = await getBalances(runtime, messageFromMemory, state, [defuseTokenIn], nearConnection.connection.provider, network);
-    console.log("Token balance after deposit:", tokenBalanceInAfterDeposit);
 
     // Get quote
     const quote = await getQuote({
@@ -300,6 +293,7 @@ Example response:
             "exact_amount_in": "1000",
             "quote_id": "00000000-0000-0000-0000-000000000000", // OPTIONAL. default will be generated randomly
             "min_deadline_ms": "60000" // OPTIONAL. default 120_000ms / 2min
+            "network": "near"
         }
 \`\`\`
 
@@ -319,7 +313,8 @@ Respond with a JSON markdown block containing only the extracted values. Use nul
 {
     "defuse_asset_identifier_in": string | null,
     "defuse_asset_identifier_out": string | null,
-    "exact_amount_in": string | null
+    "exact_amount_in": string | null,
+    "network": string | null
 }
 \`\`\``;
 
