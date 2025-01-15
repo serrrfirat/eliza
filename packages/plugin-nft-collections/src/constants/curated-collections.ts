@@ -8,7 +8,7 @@ export const CollectionCategory = z.enum([
     "Iconic Gems",
 ]);
 
-export type CollectionCategory = z.infer<typeof CollectionCategory>;
+//export type CollectionCategory = z.infer<typeof CollectionCategory>;
 
 export const CuratedCollectionSchema = z.object({
     address: z.string(),

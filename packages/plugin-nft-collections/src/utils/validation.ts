@@ -111,7 +111,7 @@ export function validatePriceRange(price: number): boolean {
 export function sanitizeCollectionData(data: unknown): Partial<NFTCollection> {
     try {
         return NFTCollectionSchema.parse(data);
-    } catch (error) {
+    } catch {
         // Return only the valid fields
         const partial = {};
         const validFields = Object.entries(

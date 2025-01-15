@@ -152,6 +152,7 @@ export class PGLiteDatabaseAdapter
         roomIds: UUID[];
         agentId?: UUID;
         tableName: string;
+        limit?: number;
     }): Promise<Memory[]> {
         return this.withDatabase(async () => {
             if (params.roomIds.length === 0) return [];
@@ -165,6 +166,13 @@ export class PGLiteDatabaseAdapter
             if (params.agentId) {
                 query += ` AND "agentId" = $${params.roomIds.length + 2}`;
                 queryParams = [...queryParams, params.agentId];
+            }
+
+            // Add ordering and limit
+            query += ` ORDER BY "createdAt" DESC`;
+            if (params.limit) {
+                query += ` LIMIT $${queryParams.length + 1}`;
+                queryParams.push(params.limit.toString());
             }
 
             const { rows } = await this.query<Memory>(query, queryParams);

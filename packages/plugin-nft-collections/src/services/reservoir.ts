@@ -218,19 +218,19 @@ export class ReservoirService {
         return Promise.resolve({} as MarketStats);
     }
 
-    async getCollectionActivity(collectionAddress: string): Promise<any> {
+    async getCollectionActivity(_collectionAddress: string): Promise<any> {
         return Promise.resolve(null);
     }
 
-    async getCollectionTokens(collectionAddress: string): Promise<any> {
+    async getCollectionTokens(_collectionAddress: string): Promise<any> {
         return Promise.resolve(null);
     }
 
-    async getCollectionAttributes(collectionAddress: string): Promise<any> {
+    async getCollectionAttributes(_collectionAddress: string): Promise<any> {
         return Promise.resolve(null);
     }
 
-    async getFloorListings(options: {
+    async getFloorListings(_options: {
         collection: string;
         limit: number;
         sortBy: "price" | "rarity";
@@ -245,7 +245,7 @@ export class ReservoirService {
         return Promise.resolve([]);
     }
 
-    async executeBuy(options: {
+    async executeBuy(_options: {
         listings: Array<{
             tokenId: string;
             price: number;
@@ -266,7 +266,7 @@ export class ReservoirService {
         });
     }
 
-    async createListing(options: {
+    async createListing(_options: {
         tokenId: string;
         collectionAddress: string;
         price: number;
@@ -288,7 +288,7 @@ export class ReservoirService {
         });
     }
 
-    async cancelListing(options: {
+    async cancelListing(_options: {
         listingId: string;
         marketplace: "ikigailabs";
     }): Promise<{
@@ -301,7 +301,7 @@ export class ReservoirService {
         });
     }
 
-    async getOwnedNFTs(owner: string): Promise<
+    async getOwnedNFTs(_owner: string): Promise<
         Array<{
             tokenId: string;
             collectionAddress: string;

@@ -1,8 +1,11 @@
 import {
     createPublicClient,
+    createTestClient,
     createWalletClient,
     formatUnits,
     http,
+    publicActions,
+    walletActions,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import {
@@ -21,6 +24,7 @@ import type {
     HttpTransport,
     Account,
     PrivateKeyAccount,
+    TestClient,
 } from "viem";
 import * as viemChains from "viem/chains";
 import { DeriveKeyProvider, TEEMode } from "@elizaos/plugin-tee";
@@ -82,6 +86,16 @@ export class WalletProvider {
         });
 
         return walletClient;
+    }
+
+    getTestClient(): TestClient {
+        return createTestClient({
+            chain: viemChains.hardhat,
+            mode: "hardhat",
+            transport: http(),
+        })
+            .extend(publicActions)
+            .extend(walletActions);
     }
 
     getChainConfigs(chainName: SupportedChain): Chain {

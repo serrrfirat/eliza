@@ -41,12 +41,16 @@ import createGoatPlugin from "@elizaos/plugin-goat";
 import { DirectClient } from "@elizaos/client-direct";
 import { ThreeDGenerationPlugin } from "@elizaos/plugin-3d-generation";
 import { abstractPlugin } from "@elizaos/plugin-abstract";
+import { akashPlugin } from "@elizaos/plugin-akash";
 import { alloraPlugin } from "@elizaos/plugin-allora";
 import { aptosPlugin } from "@elizaos/plugin-aptos";
 import { artheraPlugin } from "@elizaos/plugin-arthera";
+import { autonomePlugin } from "@elizaos/plugin-autonome";
 import { availPlugin } from "@elizaos/plugin-avail";
 import { avalanchePlugin } from "@elizaos/plugin-avalanche";
+import { b2Plugin } from "@elizaos/plugin-b2";
 import { binancePlugin } from "@elizaos/plugin-binance";
+import { birdeyePlugin } from "@elizaos/plugin-birdeye";
 import {
     advancedTradePlugin,
     coinbaseCommercePlugin,
@@ -55,8 +59,8 @@ import {
     tradePlugin,
     webhookPlugin,
 } from "@elizaos/plugin-coinbase";
-import { coinmarketcapPlugin } from "@elizaos/plugin-coinmarketcap";
 import { coingeckoPlugin } from "@elizaos/plugin-coingecko";
+import { coinmarketcapPlugin } from "@elizaos/plugin-coinmarketcap";
 import { confluxPlugin } from "@elizaos/plugin-conflux";
 import { createCosmosPlugin } from "@elizaos/plugin-cosmos";
 import { cronosZkEVMPlugin } from "@elizaos/plugin-cronoszkevm";
@@ -65,43 +69,41 @@ import { evmPlugin } from "@elizaos/plugin-evm";
 import { flowPlugin } from "@elizaos/plugin-flow";
 import { fuelPlugin } from "@elizaos/plugin-fuel";
 import { genLayerPlugin } from "@elizaos/plugin-genlayer";
+import { giphyPlugin } from "@elizaos/plugin-giphy";
+import { hyperliquidPlugin } from "@elizaos/plugin-hyperliquid";
 import { imageGenerationPlugin } from "@elizaos/plugin-image-generation";
 import { lensPlugin } from "@elizaos/plugin-lensNetwork";
+import { letzAIPlugin } from "@elizaos/plugin-letzai";
 import { multiversxPlugin } from "@elizaos/plugin-multiversx";
 import { nearPlugin } from "@elizaos/plugin-near";
+import createNFTCollectionsPlugin from "@elizaos/plugin-nft-collections";
 import { nftGenerationPlugin } from "@elizaos/plugin-nft-generation";
 import { createNodePlugin } from "@elizaos/plugin-node";
 import { obsidianPlugin } from "@elizaos/plugin-obsidian";
+import { OpacityAdapter } from "@elizaos/plugin-opacity";
+import { openWeatherPlugin } from "@elizaos/plugin-open-weather";
+import { quaiPlugin } from "@elizaos/plugin-quai";
 import { sgxPlugin } from "@elizaos/plugin-sgx";
 import { solanaPlugin } from "@elizaos/plugin-solana";
 import { solanaAgentkitPlguin } from "@elizaos/plugin-solana-agentkit";
-import { autonomePlugin } from "@elizaos/plugin-autonome";
+import { stargazePlugin } from "@elizaos/plugin-stargaze";
 import { storyPlugin } from "@elizaos/plugin-story";
 import { suiPlugin } from "@elizaos/plugin-sui";
 import { TEEMode, teePlugin } from "@elizaos/plugin-tee";
 import { teeLogPlugin } from "@elizaos/plugin-tee-log";
 import { teeMarlinPlugin } from "@elizaos/plugin-tee-marlin";
-import { tonPlugin } from "@elizaos/plugin-ton";
-import { webSearchPlugin } from "@elizaos/plugin-web-search";
-
-import { giphyPlugin } from "@elizaos/plugin-giphy";
-import { letzAIPlugin } from "@elizaos/plugin-letzai";
+import { verifiableLogPlugin } from "@elizaos/plugin-tee-verifiable-log";
 import { thirdwebPlugin } from "@elizaos/plugin-thirdweb";
-import { hyperliquidPlugin } from "@elizaos/plugin-hyperliquid";
+import { tonPlugin } from "@elizaos/plugin-ton";
+import { squidRouterPlugin } from "@elizaos/plugin-squid-router";
+import { webSearchPlugin } from "@elizaos/plugin-web-search";
 import { zksyncEraPlugin } from "@elizaos/plugin-zksync-era";
-
-import { OpacityAdapter } from "@elizaos/plugin-opacity";
-import { openWeatherPlugin } from "@elizaos/plugin-open-weather";
-import { stargazePlugin } from "@elizaos/plugin-stargaze";
-import { akashPlugin } from "@elizaos/plugin-akash";
-import { quaiPlugin } from "@elizaos/plugin-quai";
 import Database from "better-sqlite3";
 import fs from "fs";
 import net from "net";
 import path from "path";
 import { fileURLToPath } from "url";
 import yargs from "yargs";
-import createNFTCollectionsPlugin from "@elizaos/plugin-nft-collections";
 
 const __filename = fileURLToPath(import.meta.url); // get the resolved path to the file
 const __dirname = path.dirname(__filename); // get the name of the directory
@@ -798,6 +800,11 @@ export async function createAgent(
                   ]
                 : []),
             ...(teeMode !== TEEMode.OFF && walletSecretSalt ? [teePlugin] : []),
+            teeMode !== TEEMode.OFF &&
+            walletSecretSalt &&
+            getSecret(character, "VLOG")
+                ? verifiableLogPlugin
+                : null,
             getSecret(character, "SGX") ? sgxPlugin : null,
             getSecret(character, "ENABLE_TEE_LOG") &&
             ((teeMode !== TEEMode.OFF && walletSecretSalt) ||
@@ -818,6 +825,7 @@ export async function createAgent(
             getSecret(character, "ABSTRACT_PRIVATE_KEY")
                 ? abstractPlugin
                 : null,
+            getSecret(character, "B2_PRIVATE_KEY") ? b2Plugin: null,
             getSecret(character, "BINANCE_API_KEY") &&
             getSecret(character, "BINANCE_SECRET_KEY")
                 ? binancePlugin
@@ -841,10 +849,18 @@ export async function createAgent(
             getSecret(character, "THIRDWEB_SECRET_KEY") ? thirdwebPlugin : null,
             getSecret(character, "SUI_PRIVATE_KEY") ? suiPlugin : null,
             getSecret(character, "STORY_PRIVATE_KEY") ? storyPlugin : null,
+            getSecret(character, "SQUID_SDK_URL") &&
+            getSecret(character, "SQUID_INTEGRATOR_ID") &&
+            getSecret(character, "SQUID_EVM_ADDRESS") &&
+            getSecret(character, "SQUID_EVM_PRIVATE_KEY") &&
+            getSecret(character, "SQUID_API_THROTTLE_INTERVAL")
+                ? squidRouterPlugin
+                : null,
             getSecret(character, "FUEL_PRIVATE_KEY") ? fuelPlugin : null,
             getSecret(character, "AVALANCHE_PRIVATE_KEY")
                 ? avalanchePlugin
                 : null,
+            getSecret(character, "BIRDEYE_API_KEY") ? birdeyePlugin : null,
             getSecret(character, "ECHOCHAMBERS_API_URL") &&
             getSecret(character, "ECHOCHAMBERS_API_KEY")
                 ? echoChambersPlugin

@@ -16,7 +16,7 @@ export class SocialAnalyticsService {
         this.rateLimiter = config.rateLimiter;
     }
 
-    async getSocialMetrics(address: string): Promise<SocialMetrics> {
+    async getSocialMetrics(_address: string): Promise<SocialMetrics> {
         // Implementation will be added later
         return {
             lastUpdate: new Date().toISOString(),
@@ -24,9 +24,9 @@ export class SocialAnalyticsService {
     }
 
     async getCommunityMetrics(
-        address: string,
-        discordId?: string,
-        telegramId?: string
+        _address: string,
+        _discordId?: string,
+        _telegramId?: string
     ): Promise<SocialMetrics> {
         // Implementation will be added later
         return {
@@ -34,7 +34,7 @@ export class SocialAnalyticsService {
         };
     }
 
-    async analyzeSentiment(address: string): Promise<{
+    async analyzeSentiment(_address: string): Promise<{
         overall: number;
         breakdown: {
             positive: number;
@@ -59,7 +59,7 @@ export class SocialAnalyticsService {
         };
     }
 
-    async trackSocialPerformance(address: string): Promise<{
+    async trackSocialPerformance(_address: string): Promise<{
         metrics: {
             reach: number;
             engagement: number;

@@ -16,7 +16,7 @@ export class MarketIntelligenceService {
         this.rateLimiter = config.rateLimiter;
     }
 
-    async getMarketIntelligence(address: string): Promise<MarketData> {
+    async getMarketIntelligence(_address: string): Promise<MarketData> {
         // Implementation will be added later
         return {
             floorPrice: 0,

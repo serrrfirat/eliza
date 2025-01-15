@@ -45,7 +45,7 @@ export class SecurityManager {
 
         try {
             return JSON.parse(decrypted);
-        } catch (error) {
+        } catch {
             throw new Error('Failed to decrypt or parse data');
         }
     }

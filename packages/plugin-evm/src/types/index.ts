@@ -117,6 +117,7 @@ export interface EvmPluginConfig {
         zksync?: string;
         canto?: string;
         alienx?: string;
+        gravity?: string;
     };
     secrets?: {
         EVM_PRIVATE_KEY: string;
@@ -164,4 +165,40 @@ export interface TokenListResponse {
 export interface ProviderError extends Error {
     code?: number;
     data?: unknown;
+}
+
+export enum VoteType {
+    AGAINST = 0,
+    FOR = 1,
+    ABSTAIN = 2,
+}
+
+export interface Proposal {
+    targets: Address[];
+    values: bigint[];
+    calldatas: `0x${string}`[];
+    description: string;
+}
+
+export interface VoteParams {
+    chain: SupportedChain;
+    governor: Address;
+    proposalId: string;
+    support: VoteType;
+}
+
+export interface QueueProposalParams extends Proposal {
+    chain: SupportedChain;
+    governor: Address;
+}
+
+export interface ExecuteProposalParams extends Proposal {
+    chain: SupportedChain;
+    governor: Address;
+    proposalId: string;
+}
+
+export interface ProposeProposalParams extends Proposal {
+    chain: SupportedChain;
+    governor: Address;
 }

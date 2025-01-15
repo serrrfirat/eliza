@@ -10,7 +10,7 @@ import {
     Participant,
     Room,
     RAGKnowledgeItem,
-    elizaLogger
+    elizaLogger,
 } from "@elizaos/core";
 import { DatabaseAdapter } from "@elizaos/core";
 import { v4 as uuid } from "uuid";
@@ -114,14 +114,20 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
         roomIds: UUID[];
         agentId?: UUID;
         tableName: string;
+        limit?: number;
     }): Promise<Memory[]> {
         let query = this.supabase
             .from(params.tableName)
             .select("*")
-            .in("roomId", params.roomIds);
+            .in("roomId", params.roomIds)
+            .order("createdAt", { ascending: false });
 
         if (params.agentId) {
             query = query.eq("agentId", params.agentId);
+        }
+
+        if (params.limit) {
+            query = query.limit(params.limit);
         }
 
         const { data, error } = await query;
@@ -688,14 +694,14 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
         agentId: UUID;
     }): Promise<string | undefined> {
         const { data, error } = await this.supabase
-            .from('cache')
-            .select('value')
-            .eq('key', params.key)
-            .eq('agentId', params.agentId)
+            .from("cache")
+            .select("value")
+            .eq("key", params.key)
+            .eq("agentId", params.agentId)
             .single();
 
         if (error) {
-            elizaLogger.error('Error fetching cache:', error);
+            elizaLogger.error("Error fetching cache:", error);
             return undefined;
         }
 
@@ -707,17 +713,15 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
         agentId: UUID;
         value: string;
     }): Promise<boolean> {
-        const { error } = await this.supabase
-            .from('cache')
-            .upsert({
-                key: params.key,
-                agentId: params.agentId,
-                value: params.value,
-                createdAt: new Date()
-            });
+        const { error } = await this.supabase.from("cache").upsert({
+            key: params.key,
+            agentId: params.agentId,
+            value: params.value,
+            createdAt: new Date(),
+        });
 
         if (error) {
-            elizaLogger.error('Error setting cache:', error);
+            elizaLogger.error("Error setting cache:", error);
             return false;
         }
 
@@ -730,10 +734,10 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
     }): Promise<boolean> {
         try {
             const { error } = await this.supabase
-                .from('cache')
+                .from("cache")
                 .delete()
-                .eq('key', params.key)
-                .eq('agentId', params.agentId);
+                .eq("key", params.key)
+                .eq("agentId", params.agentId);
 
             if (error) {
                 elizaLogger.error("Error deleting cache", {
@@ -760,12 +764,12 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
         query?: string;
     }): Promise<RAGKnowledgeItem[]> {
         let query = this.supabase
-            .from('knowledge')
-            .select('*')
+            .from("knowledge")
+            .select("*")
             .or(`agentId.eq.${params.agentId},isShared.eq.true`);
 
         if (params.id) {
-            query = query.eq('id', params.id);
+            query = query.eq("id", params.id);
         }
 
         if (params.limit) {
@@ -778,12 +782,17 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
             throw new Error(`Error getting knowledge: ${error.message}`);
         }
 
-        return data.map(row => ({
+        return data.map((row) => ({
             id: row.id,
             agentId: row.agentId,
-            content: typeof row.content === 'string' ? JSON.parse(row.content) : row.content,
-            embedding: row.embedding ? new Float32Array(row.embedding) : undefined,
-            createdAt: new Date(row.createdAt).getTime()
+            content:
+                typeof row.content === "string"
+                    ? JSON.parse(row.content)
+                    : row.content,
+            embedding: row.embedding
+                ? new Float32Array(row.embedding)
+                : undefined,
+            createdAt: new Date(row.createdAt).getTime(),
         }));
     }
 
@@ -797,7 +806,7 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
         const cacheKey = `embedding_${params.agentId}_${params.searchText}`;
         const cachedResult = await this.getCache({
             key: cacheKey,
-            agentId: params.agentId
+            agentId: params.agentId,
         });
 
         if (cachedResult) {
@@ -807,31 +816,36 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
         // Convert Float32Array to array for Postgres vector
         const embedding = Array.from(params.embedding);
 
-        const { data, error } = await this.supabase.rpc('search_knowledge', {
+        const { data, error } = await this.supabase.rpc("search_knowledge", {
             query_embedding: embedding,
             query_agent_id: params.agentId,
             match_threshold: params.match_threshold,
             match_count: params.match_count,
-            search_text: params.searchText || ''
+            search_text: params.searchText || "",
         });
 
         if (error) {
             throw new Error(`Error searching knowledge: ${error.message}`);
         }
 
-        const results = data.map(row => ({
+        const results = data.map((row) => ({
             id: row.id,
             agentId: row.agentId,
-            content: typeof row.content === 'string' ? JSON.parse(row.content) : row.content,
-            embedding: row.embedding ? new Float32Array(row.embedding) : undefined,
+            content:
+                typeof row.content === "string"
+                    ? JSON.parse(row.content)
+                    : row.content,
+            embedding: row.embedding
+                ? new Float32Array(row.embedding)
+                : undefined,
             createdAt: new Date(row.createdAt).getTime(),
-            similarity: row.similarity
+            similarity: row.similarity,
         }));
 
         await this.setCache({
             key: cacheKey,
             agentId: params.agentId,
-            value: JSON.stringify(results)
+            value: JSON.stringify(results),
         });
 
         return results;
@@ -841,23 +855,26 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
         try {
             const metadata = knowledge.content.metadata || {};
 
-            const { error } = await this.supabase
-                .from('knowledge')
-                .insert({
-                    id: knowledge.id,
-                    agentId: metadata.isShared ? null : knowledge.agentId,
-                    content: knowledge.content,
-                    embedding: knowledge.embedding ? Array.from(knowledge.embedding) : null,
-                    createdAt: knowledge.createdAt || new Date(),
-                    isMain: metadata.isMain || false,
-                    originalId: metadata.originalId || null,
-                    chunkIndex: metadata.chunkIndex || null,
-                    isShared: metadata.isShared || false
-                });
+            const { error } = await this.supabase.from("knowledge").insert({
+                id: knowledge.id,
+                agentId: metadata.isShared ? null : knowledge.agentId,
+                content: knowledge.content,
+                embedding: knowledge.embedding
+                    ? Array.from(knowledge.embedding)
+                    : null,
+                createdAt: knowledge.createdAt || new Date(),
+                isMain: metadata.isMain || false,
+                originalId: metadata.originalId || null,
+                chunkIndex: metadata.chunkIndex || null,
+                isShared: metadata.isShared || false,
+            });
 
             if (error) {
-                if (metadata.isShared && error.code === '23505') { // Unique violation
-                    elizaLogger.info(`Shared knowledge ${knowledge.id} already exists, skipping`);
+                if (metadata.isShared && error.code === "23505") {
+                    // Unique violation
+                    elizaLogger.info(
+                        `Shared knowledge ${knowledge.id} already exists, skipping`
+                    );
                     return;
                 }
                 throw error;
@@ -866,7 +883,7 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
             elizaLogger.error(`Error creating knowledge ${knowledge.id}:`, {
                 error,
                 embeddingLength: knowledge.embedding?.length,
-                content: knowledge.content
+                content: knowledge.content,
             });
             throw error;
         }
@@ -874,9 +891,9 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
 
     async removeKnowledge(id: UUID): Promise<void> {
         const { error } = await this.supabase
-            .from('knowledge')
+            .from("knowledge")
             .delete()
-            .eq('id', id);
+            .eq("id", id);
 
         if (error) {
             throw new Error(`Error removing knowledge: ${error.message}`);
@@ -886,23 +903,29 @@ export class SupabaseDatabaseAdapter extends DatabaseAdapter {
     async clearKnowledge(agentId: UUID, shared?: boolean): Promise<void> {
         if (shared) {
             const { error } = await this.supabase
-                .from('knowledge')
+                .from("knowledge")
                 .delete()
-                .filter('agentId', 'eq', agentId)
-                .filter('isShared', 'eq', true);
+                .filter("agentId", "eq", agentId)
+                .filter("isShared", "eq", true);
 
             if (error) {
-                elizaLogger.error(`Error clearing shared knowledge for agent ${agentId}:`, error);
+                elizaLogger.error(
+                    `Error clearing shared knowledge for agent ${agentId}:`,
+                    error
+                );
                 throw error;
             }
         } else {
             const { error } = await this.supabase
-                .from('knowledge')
+                .from("knowledge")
                 .delete()
-                .eq('agentId', agentId);
+                .eq("agentId", agentId);
 
             if (error) {
-                elizaLogger.error(`Error clearing knowledge for agent ${agentId}:`, error);
+                elizaLogger.error(
+                    `Error clearing knowledge for agent ${agentId}:`,
+                    error
+                );
                 throw error;
             }
         }
