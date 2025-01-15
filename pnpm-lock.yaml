@@ -2146,6 +2146,9 @@ importers:
 
   packages/plugin-near:
     dependencies:
+      '@dao-xyz/borsh':
+        specifier: ^5.2.1
+        version: 5.2.3
       '@elizaos/core':
         specifier: workspace:*
         version: link:../core
@@ -2155,9 +2158,18 @@ importers:
       bignumber.js:
         specifier: 9.1.2
         version: 9.1.2
+      borsh:
+        specifier: 0.7.0
+        version: 0.7.0
+      fetch:
+        specifier: 1.1.0
+        version: 1.1.0
       form-data:
         specifier: 4.0.1
         version: 4.0.1
+      js-sha256:
+        specifier: ^0.11.0
+        version: 0.11.0
       near-api-js:
         specifier: 5.0.1
         version: 5.0.1(encoding@0.1.13)
@@ -2167,9 +2179,15 @@ importers:
       tsup:
         specifier: 8.3.5
         version: 8.3.5(@swc/core@1.10.7(@swc/helpers@0.5.15))(jiti@2.4.2)(postcss@8.5.0)(tsx@4.19.2)(typescript@5.7.3)(yaml@2.7.0)
+      viem:
+        specifier: 2.21.58
+        version: 2.21.58(bufferutil@4.0.9)(typescript@5.7.3)(utf-8-validate@6.0.5)(zod@3.23.8)
       whatwg-url:
         specifier: 7.1.0
         version: 7.1.0
+      zod:
+        specifier: ^3.22.4
+        version: 3.23.8
 
   packages/plugin-nft-collections:
     dependencies:
@@ -4949,6 +4967,9 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       postcss: ^8.4
+
+  '@dao-xyz/borsh@5.2.3':
+    resolution: {integrity: sha512-W4iG53Wp7V6vtQhnuOhB3I6U6C0409gDG9eWBBA0hBbM8+hNFilZ0y0ePTOs5DS/n+J8vHS9Rsyb5fHGdUu9Qg==}
 
   '@deepgram/captions@1.2.0':
     resolution: {integrity: sha512-8B1C/oTxTxyHlSFubAhNRgCbQ2SQ5wwvtlByn8sDYZvdDtdn/VE2yEPZ4BvUnrKWmsbTQY6/ooLV+9Ka2qmDSQ==}
@@ -11610,6 +11631,10 @@ packages:
   bip39@3.1.0:
     resolution: {integrity: sha512-c9kiwdk45Do5GL0vJMe7tS95VjCii65mYAH7DfWl3uW8AVzXKQVUm64i3hzVybBDMp9r7j9iNxR85+ul8MdN/A==}
 
+  biskviit@1.0.1:
+    resolution: {integrity: sha512-VGCXdHbdbpEkFgtjkeoBN8vRlbj1ZRX2/mxhE8asCCRalUx2nBzOomLJv8Aw/nRt5+ccDb+tPKidg4XxcfGW4w==}
+    engines: {node: '>=1.0.0'}
+
   bitcoinjs-lib@7.0.0-rc.0:
     resolution: {integrity: sha512-7CQgOIbREemKR/NT2uc3uO/fkEy+6CM0sLxboVVY6bv6DbZmPt3gg5Y/hhWgQFeZu5lfTbtVAv32MIxf7lMh4g==}
     engines: {node: '>=18.0.0'}
@@ -13504,6 +13529,9 @@ packages:
     resolution: {integrity: sha512-Q0n9HRi4m6JuGIV1eFlmvJB7ZEVxu93IrMyiMsGC0lrMJMWzRgx6WGquyfQgZVb31vhGgXnfmPNNXmxnOkRBrg==}
     engines: {node: '>= 0.8'}
 
+  encoding@0.1.12:
+    resolution: {integrity: sha512-bl1LAgiQc4ZWr++pNYUdRe/alecaHFeHxIJ/pNciqGdKXghaTCOwKkbKp6ye7pKZGu/GcaSXFk8PBVhgs+dJdA==}
+
   encoding@0.1.13:
     resolution: {integrity: sha512-ETBauow1T35Y/WZMkio9jiM0Z5xjHHmJ4XmjZOq1l/dXz3lr2sRn87nJy20RupqSh1F2m3HHPSp8ShIPQJrJ3A==}
 
@@ -14140,6 +14168,9 @@ packages:
 
   fetch-cookie@3.1.0:
     resolution: {integrity: sha512-s/XhhreJpqH0ftkGVcQt8JE9bqk+zRn4jF5mPJXWZeQMCI5odV9K+wEWYbnzFPHgQZlvPSMjS4n4yawWE8RINw==}
+
+  fetch@1.1.0:
+    resolution: {integrity: sha512-5O8TwrGzoNblBG/jtK4NFuZwNCkZX6s5GfRNOaGtm+QGJEuNakSC/i2RW0R93KX6E0jVjNXm6O3CRN4Ql3K+yA==}
 
   fflate@0.8.2:
     resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
@@ -25963,6 +25994,11 @@ snapshots:
     dependencies:
       postcss: 8.5.0
 
+  '@dao-xyz/borsh@5.2.3':
+    dependencies:
+      '@protobufjs/float': 1.0.2
+      '@protobufjs/utf8': 1.1.0
+
   '@deepgram/captions@1.2.0':
     dependencies:
       dayjs: 1.11.13
@@ -36760,6 +36796,10 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.3.0
 
+  biskviit@1.0.1:
+    dependencies:
+      psl: 1.15.0
+
   bitcoinjs-lib@7.0.0-rc.0(typescript@5.7.3):
     dependencies:
       '@noble/hashes': 1.7.0
@@ -39060,6 +39100,10 @@ snapshots:
 
   encodeurl@2.0.0: {}
 
+  encoding@0.1.12:
+    dependencies:
+      iconv-lite: 0.4.24
+
   encoding@0.1.13:
     dependencies:
       iconv-lite: 0.6.3
@@ -40218,6 +40262,11 @@ snapshots:
     dependencies:
       set-cookie-parser: 2.7.1
       tough-cookie: 5.1.0
+
+  fetch@1.1.0:
+    dependencies:
+      biskviit: 1.0.1
+      encoding: 0.1.12
 
   fflate@0.8.2: {}
 
