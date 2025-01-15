@@ -306,8 +306,8 @@ export const initWalletProvider = async (runtime: IAgentRuntime) => {
 
         const deriveKeyProvider = new DeriveKeyProvider(teeMode);
         const deriveKeyResult = await deriveKeyProvider.deriveEcdsaKeypair(
-            "/",
             walletSecretSalt,
+            "evm",
             runtime.agentId
         );
         return new WalletProvider(

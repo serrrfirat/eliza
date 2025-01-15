@@ -61,9 +61,12 @@ export default function Page({ agentId }: { agentId: UUID }) {
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            if (e.nativeEvent.isComposing) return;
             handleSendMessage(e as unknown as React.FormEvent<HTMLFormElement>);
         }
     };
+
 
     const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();

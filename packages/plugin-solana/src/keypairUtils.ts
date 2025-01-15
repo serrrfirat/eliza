@@ -30,8 +30,8 @@ export async function getWalletKey(
 
         const deriveKeyProvider = new DeriveKeyProvider(teeMode);
         const deriveKeyResult = await deriveKeyProvider.deriveEd25519Keypair(
-            "/",
             walletSecretSalt,
+            "solana",
             runtime.agentId
         );
 
