@@ -170,7 +170,7 @@ export function convertAmountToDecimals(amount: string, token: UnifiedToken | Si
     // Convert decimal string (e.g. "0.1") to integer with proper decimals
     const [whole, decimal = ""] = amount.split(".");
     const decimals = token.decimals;
-    const paddedDecimal = decimal.padEnd(decimals, "0");
-    const fullAmount = `${whole}${paddedDecimal}`;
+    const trimmedDecimal = decimal.slice(0, decimals).padEnd(decimals, "0");
+    const fullAmount = `${whole}${trimmedDecimal}`;
     return BigInt(fullAmount);
 }
